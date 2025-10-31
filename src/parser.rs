@@ -62,8 +62,17 @@ impl Parser {
     fn parse_statements(&mut self) -> Result<Statement, String> {
         match self.peek().token_type {
             TokenType::Return => self.return_statement(),
+            TokenType::Identifier=>self.parse_expression_statement(),
+            TokenType::LBrace=>{
+                Ok(Statement::Block(self.parse_block()?))
+            }
             _ => Err(format!("expected return found {:?} ", self.peek())),
         }
+    }
+    pub fn parse_expression_statement(&mut self)->Result<Statement,String>{
+        let exp = self.parse_expression()?;
+        self.consume(TokenType::Semicolon)?;
+        Ok(Statement::ExpressionStatement(exp))
     }
 
     fn return_statement(&mut self) -> Result<Statement, String> {
@@ -76,6 +85,7 @@ impl Parser {
         self.consume(TokenType::Semicolon)?;
         Ok(Statement::Return(exp))
     }
+    
     pub fn match_(&mut self, type_: TokenType) -> bool {
         self.peek().token_type == type_
     }
@@ -186,7 +196,7 @@ impl Parser {
         }
         Ok(left)
     }
-    
+
     fn parse_cast(&mut self)->Result<Expression,String>{
         if self.match_(TokenType::LPAREN){
             let pos = self.current;
@@ -220,8 +230,33 @@ impl Parser {
                     exp: Box::new(exp),
                 })
             }
-            _ => self.parse_primary(),
+            _ => self.parse_fn_call(),
         }
+    }
+    pub fn parse_arguments(&mut self)->Result<Vec<Expression>,String>{
+        let mut args= vec![];
+        while !self.match_(TokenType::RPAREN){
+            let arg = self.parse_expression()?;
+            args.push(arg);
+            if !self.match_consume(TokenType::Comma){
+                break;
+            }
+        }
+        self.consume(TokenType::RPAREN)?;
+        Ok(args)
+    }
+    pub fn parse_fn_call(&mut self)->Result<Expression,String>{
+        let mut primary = self.parse_primary()?;
+        if self.match_(TokenType::LPAREN){
+            if let Expression::Identifier(a) = &primary{
+                self.consume(TokenType::LPAREN)?;
+                let args = self.parse_arguments()?;
+                primary = Expression::FunctionCall { name: a.clone(), args };
+            }else {
+                return Err("Expected function name".to_string());
+            }
+        }
+        Ok(primary)
     }
 
     fn parse_primary(&mut self) -> Result<Expression, String> {

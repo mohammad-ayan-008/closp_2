@@ -1,4 +1,13 @@
-fn int main(int a,int b,){
+fn int test(int a){
 
+  return 1;
+}
+
+fn int main(int a,int b,){
+   {
+     test(1);
+   }
+   main((int*)1==1);
+   test(123);
    return (int) (void*) (5+1/2);
 }

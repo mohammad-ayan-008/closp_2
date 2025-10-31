@@ -38,6 +38,7 @@ pub struct Block {
 #[derive(Debug)]
 pub enum Statement {
     Return(Option<Expression>),
+    ExpressionStatement(Expression),
     Block(Block),
 }
 

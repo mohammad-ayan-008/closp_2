@@ -41,6 +41,10 @@ pub enum Expression {
         expected:Type,
         expr:Box<Expression>,
     },
+    FunctionCall{
+        name:String,
+        args:Vec<Expression>
+    },
     Float_Literal(f64),
     Int_Literal(i64),
     String_Literal(String),
