@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::expressions::Expression;
 
 #[derive(Debug)]
@@ -31,13 +32,30 @@ pub struct Function {
 }
 
 #[derive(Debug)]
+pub struct Variable{
+    pub name:String,
+    pub data_type:Type,
+    pub expression:Option<Expression>,
+}
+
+#[derive(Debug)]
 pub struct Block {
     pub statements: Vec<Statement>,
 }
 
 #[derive(Debug)]
+pub struct Assignment {
+    pub target:Expression,
+    pub value:Expression,
+}
+
+
+
+#[derive(Debug)]
 pub enum Statement {
     Return(Option<Expression>),
+    Variable(Variable),
+    Assignment(Assignment),
     ExpressionStatement(Expression),
     Block(Block),
 }

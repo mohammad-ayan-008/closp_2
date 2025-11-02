@@ -23,6 +23,8 @@ pub enum Binaryop {
 #[derive(Debug)]
 pub enum UnaryOP{
     Negate,
+    Adressof,
+    Dereference,
     Not
 }
 
