@@ -51,5 +51,6 @@ pub enum Expression {
     String_Literal(String),
     Bool_Literal(bool),
     Identifier(String),
+    Char_Literal(char),
     Null,
 }

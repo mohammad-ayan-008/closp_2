@@ -1,5 +1,3 @@
 fn int main(){
-  int a = 7;
-  int b = a;
-
+  char a = 'a';
 }

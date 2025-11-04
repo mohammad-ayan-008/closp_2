@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{arch::x86_64, collections::HashMap, hash::Hash, str};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenType {
@@ -10,6 +10,9 @@ pub enum TokenType {
     FloatLiteral,
     INTLIteral,
     StringLit,
+    True,
+    False,
+    CharLit,
 
     GT,
     LT,
@@ -38,14 +41,14 @@ pub enum TokenType {
     Return,
 
     INT,
+    Char,
     Float,
     Boolean,
     Str,
     Void,
     Null,
 
-    True,
-    False,
+   
     Comma,
     Semicolon,
 }
@@ -79,6 +82,7 @@ impl Lexer {
         keywords.insert("null".to_string(), TokenType::Null);
         keywords.insert("true".to_string(), TokenType::True);
         keywords.insert("false".to_string(), TokenType::False);
+        keywords.insert("char".to_string(), TokenType::Char);
         Self {
             stream: chars,
             start: 0,
@@ -140,6 +144,17 @@ impl Lexer {
             .collect::<String>();
         self.push_token_2(TokenType::StringLit, string);
     }
+    fn parse_char(&mut self){
+        while !self.eof() && self.peek() != '\''{
+            self.advance();
+        }
+        self.advance();
+        let string = self.stream[self.start+1..self.current-1]
+            .iter()
+            .collect::<String>();
+        self.push_token_2(TokenType::CharLit, string);
+    }
+
     fn scan_tokens(&mut self) {
         let c = self.advance();
         match c {
@@ -163,6 +178,7 @@ impl Lexer {
             '<' => self.add_double_check('=', TokenType::LTE, TokenType::LT),
             '|' => self.add_double_check('|', TokenType::OR, TokenType::BitwiseOr),
             '&' => self.add_double_check('&', TokenType::AND, TokenType::BitwiseAnd),
+            '\''=> self.parse_char(),
             '"' => self.parse_string(),
             a if a.is_ascii_digit() => {
                 while self.peek().is_ascii_digit() {

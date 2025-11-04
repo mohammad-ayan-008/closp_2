@@ -8,6 +8,7 @@ pub enum Type {
     Str,
     Void,
     Boolean,
+    Char,
     Null,
     Pointer(Box<Type>),
 }

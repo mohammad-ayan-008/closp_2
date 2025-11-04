@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    expressions::Expression,
+    expressions::{Binaryop, Expression},
     statements::{self, Block, Function, Item, Parameter, Program, Statement, Type, Variable},
 };
 
@@ -213,6 +213,7 @@ impl SemanticAnalyzer {
             Expression::Float_Literal(_) => Some(Type::Float),
             Expression::String_Literal(_) => Some(Type::Str),
             Expression::Bool_Literal(_) => Some(Type::Boolean),
+            Expression::Char_Literal(_) =>Some(Type::Char),
             Expression::Identifier(name) => {
                 if let Some(a) = self.look_up(&name) {
                     let sym_type = &a.type_;
@@ -224,9 +225,28 @@ impl SemanticAnalyzer {
                 }
             },
             Expression::Binary { lhs, op, rhs }=>{
-                todo!()
+                let lhs = self.analyze_expression(lhs);
+                let rhs = self.analyze_expression(rhs);
+                self.analyze_binary_expression(lhs, op,rhs)
             },
             _ => todo!(),
         }
+    }
+
+    pub fn analyze_binary_expression(&mut self,lhs:Option<Type>,op:&Binaryop,rhs:Option<Type>)->Option<Type>{
+       match (lhs,op,rhs) {
+            (Some(a),Binaryop::ADD,Some(Type::Int))=> {
+                if matches!(a,Type::Int | Type::Boolean){                
+                    return Some(Type::Int);
+                }else if matches!(a,Type::Float){
+                    return Some(Type::Float);
+                }
+                None 
+            },
+            (Some(Type::Int),Binaryop::ADD,Some(Type::Float))=> Some(Type::Float),
+
+            
+            (_,_,_) =>None,
+       } 
     }
 }

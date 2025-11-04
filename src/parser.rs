@@ -66,6 +66,7 @@ impl Parser {
             | TokenType::Str
             | TokenType::Boolean
             | TokenType::INT
+            | TokenType::Char
             | TokenType::Float => self.parse_variable(),
             TokenType::LBrace => Ok(Statement::Block(self.parse_block()?)),
             TokenType::Identifier => {
@@ -185,6 +186,10 @@ impl Parser {
             TokenType::Void => {
                 self.advance();
                 Type::Void
+            },
+            TokenType::Char =>{
+                self.advance();
+                Type::Char
             }
             _ => {
                 return Err(format!("found {:?} expected datatytpe", self.peek()));
@@ -350,6 +355,10 @@ impl Parser {
                 Ok(expr)
             }
             TokenType::Identifier => Ok(Expression::Identifier(tk.lexme.unwrap())),
+            TokenType::CharLit =>{
+                let char_lit = tk.lexme.unwrap().chars().nth(0).unwrap();
+                Ok(Expression::Char_Literal(char_lit))
+            }
             TokenType::Null => Ok(Expression::Null),
             _ => Err(format!(
                 "found {:?} previous to {:?}",
