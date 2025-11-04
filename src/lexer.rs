@@ -36,7 +36,7 @@ pub enum TokenType {
     Identifier,
     Fn,
     Return,
-    
+
     INT,
     Float,
     Boolean,
@@ -44,6 +44,8 @@ pub enum TokenType {
     Void,
     Null,
 
+    True,
+    False,
     Comma,
     Semicolon,
 }
@@ -75,6 +77,8 @@ impl Lexer {
         keywords.insert("Str".to_string(), TokenType::Str);
         keywords.insert("void".to_string(), TokenType::Void);
         keywords.insert("null".to_string(), TokenType::Null);
+        keywords.insert("true".to_string(), TokenType::True);
+        keywords.insert("false".to_string(), TokenType::False);
         Self {
             stream: chars,
             start: 0,

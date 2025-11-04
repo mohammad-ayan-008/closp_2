@@ -1,21 +1,21 @@
 #![allow(dead_code)]
 use crate::expressions::Expression;
 
-#[derive(Debug)]
-pub enum Type{
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
     Int,
     Float,
     Str,
     Void,
     Boolean,
     Null,
-    Pointer(Box<Type>)
+    Pointer(Box<Type>),
 }
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug)]
 pub struct Program {
-    items: Vec<Item>,
+    pub items: Vec<Item>,
 }
 
 #[derive(Debug)]
@@ -32,10 +32,10 @@ pub struct Function {
 }
 
 #[derive(Debug)]
-pub struct Variable{
-    pub name:String,
-    pub data_type:Type,
-    pub expression:Option<Expression>,
+pub struct Variable {
+    pub name: String,
+    pub data_type: Type,
+    pub expression: Option<Expression>,
 }
 
 #[derive(Debug)]
@@ -45,11 +45,9 @@ pub struct Block {
 
 #[derive(Debug)]
 pub struct Assignment {
-    pub target:Expression,
-    pub value:Expression,
+    pub target: Expression,
+    pub value: Expression,
 }
-
-
 
 #[derive(Debug)]
 pub enum Statement {
@@ -65,5 +63,3 @@ pub struct Parameter {
     pub name: String,
     pub type_: Type,
 }
-
-

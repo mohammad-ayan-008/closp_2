@@ -1,0 +1,30 @@
+fn int test(int a){
+
+  return 5;
+}
+
+fn void swap(int* a,int* b){
+   int temp = *a;
+   *a = *b;
+   *b = temp;
+}
+
+
+fn int main(int a,int b,){
+
+    int a = 5;
+    int* b = &a;
+    void* name = (void*) "hello world";
+    Str* name = "lol world";
+    bool b = true;
+
+   {
+     *a = 6;
+     a = 6;
+     test(1);
+   }
+
+   main((int*)1==1);
+   test(123);
+   return (int) (void*) (5+1/2);
+}

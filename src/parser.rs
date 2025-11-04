@@ -1,8 +1,8 @@
 #![allow(dead_code, non_camel_case_types)]
-use std::vec;
 use crate::expressions::*;
-use crate::statements::*;
 use crate::lexer::{Token, TokenType};
+use crate::statements::*;
+use std::vec;
 
 #[derive(Debug)]
 pub struct Parser {
@@ -11,7 +11,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn parse_program(&mut self) -> Result<Vec<Item>, String> {
+    pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut items = vec![];
         while !self.is_eof() {
             match self.parse_items() {
@@ -19,7 +19,7 @@ impl Parser {
                 Err(a) => panic!("{a}"),
             }
         }
-        Ok(items)
+        Ok(Program { items })
     }
 
     fn parse_items(&mut self) -> Result<Item, String> {
@@ -62,54 +62,61 @@ impl Parser {
     fn parse_statements(&mut self) -> Result<Statement, String> {
         match self.peek().token_type {
             TokenType::Return => self.return_statement(),
-            TokenType::Void|
-            TokenType::Str|
-            TokenType::Boolean|
-            TokenType::INT|
-            TokenType::Float
-            =>self.parse_variable(),
-            TokenType::LBrace=>{
-                Ok(Statement::Block(self.parse_block()?))
-            },
-            TokenType::Identifier=>{
+            TokenType::Void
+            | TokenType::Str
+            | TokenType::Boolean
+            | TokenType::INT
+            | TokenType::Float => self.parse_variable(),
+            TokenType::LBrace => Ok(Statement::Block(self.parse_block()?)),
+            TokenType::Identifier => {
                 let pointer = self.current;
                 let name = self.parse_expression()?;
-                if self.match_(TokenType::Equal){
+                if self.match_(TokenType::Equal) {
                     self.advance();
                     let expr = self.parse_expression()?;
                     self.consume(TokenType::Semicolon)?;
-                    return Ok(Statement::Assignment(Assignment { target:name , value: expr }));
-                }
-                self.current  = pointer;
-                self.parse_expression_statement()
-            }
-            TokenType::STAR=>{
-                let pointer = self.current;
-                let exp = self.parse_unary()?;
-                if self.match_(TokenType::Equal){
-                    self.advance();
-                    let expr = self.parse_expression()?;
-                    self.consume(TokenType::Semicolon)?;
-                    return Ok(Statement::Assignment(Assignment { target: exp, value:expr }))
+                    return Ok(Statement::Assignment(Assignment {
+                        target: name,
+                        value: expr,
+                    }));
                 }
                 self.current = pointer;
                 self.parse_expression_statement()
-            },
+            }
+            TokenType::STAR => {
+                let pointer = self.current;
+                let exp = self.parse_unary()?;
+                if self.match_(TokenType::Equal) {
+                    self.advance();
+                    let expr = self.parse_expression()?;
+                    self.consume(TokenType::Semicolon)?;
+                    return Ok(Statement::Assignment(Assignment {
+                        target: exp,
+                        value: expr,
+                    }));
+                }
+                self.current = pointer;
+                self.parse_expression_statement()
+            }
             _ => Err(format!("expected return found {:?} ", self.peek())),
         }
     }
-    fn parse_variable(&mut self)->Result<Statement,String>{
+    fn parse_variable(&mut self) -> Result<Statement, String> {
         let datatype = self.parse_type()?;
         let name = self.consume(TokenType::Identifier)?;
         self.consume(TokenType::Equal)?;
         let mut expr = None;
-        if !self.match_(TokenType::Semicolon){
+        if !self.match_(TokenType::Semicolon) {
             expr = Some(self.parse_expression()?);
         }
         self.consume(TokenType::Semicolon)?;
-        Ok(Statement::Variable(Variable { name:name.lexme.unwrap() , data_type:datatype, expression: expr }))
+        Ok(Statement::Variable(Variable {
+            name: name.lexme.unwrap(),
+            data_type: datatype,
+            expression: expr,
+        }))
     }
-    pub fn parse_expression_statement(&mut self)->Result<Statement,String>{
+    pub fn parse_expression_statement(&mut self) -> Result<Statement, String> {
         let exp = self.parse_expression()?;
         self.consume(TokenType::Semicolon)?;
         Ok(Statement::ExpressionStatement(exp))
@@ -125,7 +132,7 @@ impl Parser {
         self.consume(TokenType::Semicolon)?;
         Ok(Statement::Return(exp))
     }
-    
+
     pub fn match_(&mut self, type_: TokenType) -> bool {
         self.peek().token_type == type_
     }
@@ -158,24 +165,24 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<Type, String> {
-        let type_=match self.peek().token_type {
+        let type_ = match self.peek().token_type {
             TokenType::INT => {
                 self.advance();
                 Type::Int
-            },
-            TokenType::Float=> {
+            }
+            TokenType::Float => {
                 self.advance();
                 Type::Float
-            },
-            TokenType::Str=> {
+            }
+            TokenType::Str => {
                 self.advance();
                 Type::Str
-            },
+            }
             TokenType::Boolean => {
                 self.advance();
                 Type::Boolean
-            },
-            TokenType::Void =>{
+            }
+            TokenType::Void => {
                 self.advance();
                 Type::Void
             }
@@ -185,8 +192,8 @@ impl Parser {
         };
         self.parse_pointer(type_)
     }
-    fn parse_pointer(&mut self,mut type_:Type)->Result<Type,String>{
-        while self.match_(TokenType::STAR){
+    fn parse_pointer(&mut self, mut type_: Type) -> Result<Type, String> {
+        while self.match_(TokenType::STAR) {
             self.advance();
             type_ = Type::Pointer(Box::new(type_));
         }
@@ -237,15 +244,20 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_cast(&mut self)->Result<Expression,String>{
-        if self.match_(TokenType::LPAREN){
+    fn parse_cast(&mut self) -> Result<Expression, String> {
+        if self.match_(TokenType::LPAREN) {
             let pos = self.current;
             let _tk = self.advance();
 
-            if let Ok(a) = self.parse_type() && self.match_(TokenType::RPAREN){
-                    let _tk = self.advance();
-                    let expr = self.parse_cast()?;
-                    return Ok(Expression::Cast { expected: a, expr: Box::new(expr) }); 
+            if let Ok(a) = self.parse_type()
+                && self.match_(TokenType::RPAREN)
+            {
+                let _tk = self.advance();
+                let expr = self.parse_cast()?;
+                return Ok(Expression::Cast {
+                    expected: a,
+                    expr: Box::new(expr),
+                });
             }
             self.current = pos;
         }
@@ -258,58 +270,60 @@ impl Parser {
                 let _token = self.advance();
                 let exp = self.parse_cast()?;
                 Ok(Expression::Unary {
-                    token:UnaryOP::Negate,
+                    token: UnaryOP::Negate,
                     exp: Box::new(exp),
                 })
-            },
-            TokenType::BitwiseAnd=>{
+            }
+            TokenType::BitwiseAnd => {
                 let _token = self.advance();
                 let exp = self.parse_cast()?;
                 Ok(Expression::Unary {
-                    token:UnaryOP::Adressof,
+                    token: UnaryOP::Adressof,
                     exp: Box::new(exp),
                 })
-
-            },
+            }
             TokenType::Bang => {
                 let _token = self.advance();
                 let exp = self.parse_cast()?;
                 Ok(Expression::Unary {
-                    token:UnaryOP::Not,
+                    token: UnaryOP::Not,
                     exp: Box::new(exp),
                 })
-            },
-            TokenType::STAR=>{
+            }
+            TokenType::STAR => {
                 let _token = self.advance();
                 let exp = self.parse_cast()?;
                 Ok(Expression::Unary {
-                    token:UnaryOP::Dereference,
+                    token: UnaryOP::Dereference,
                     exp: Box::new(exp),
                 })
-            },
+            }
             _ => self.parse_fn_call(),
         }
     }
-    pub fn parse_arguments(&mut self)->Result<Vec<Expression>,String>{
-        let mut args= vec![];
-        while !self.match_(TokenType::RPAREN){
+    pub fn parse_arguments(&mut self) -> Result<Vec<Expression>, String> {
+        let mut args = vec![];
+        while !self.match_(TokenType::RPAREN) {
             let arg = self.parse_expression()?;
             args.push(arg);
-            if !self.match_consume(TokenType::Comma){
+            if !self.match_consume(TokenType::Comma) {
                 break;
             }
         }
         self.consume(TokenType::RPAREN)?;
         Ok(args)
     }
-    pub fn parse_fn_call(&mut self)->Result<Expression,String>{
+    pub fn parse_fn_call(&mut self) -> Result<Expression, String> {
         let mut primary = self.parse_primary()?;
-        if self.match_(TokenType::LPAREN){
-            if let Expression::Identifier(a) = &primary{
+        if self.match_(TokenType::LPAREN) {
+            if let Expression::Identifier(a) = &primary {
                 self.consume(TokenType::LPAREN)?;
                 let args = self.parse_arguments()?;
-                primary = Expression::FunctionCall { name: a.clone(), args };
-            }else {
+                primary = Expression::FunctionCall {
+                    name: a.clone(),
+                    args,
+                };
+            } else {
                 return Err("Expected function name".to_string());
             }
         }
@@ -319,28 +333,34 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expression, String> {
         let tk = self.advance();
         match tk.token_type {
+            TokenType::True => Ok(Expression::Bool_Literal(true)),
+            TokenType::False => Ok(Expression::Bool_Literal(false)),
             TokenType::INTLIteral => {
                 let num = tk.lexme.unwrap().parse::<i64>().unwrap();
                 Ok(Expression::Int_Literal(num))
-            },
+            }
             TokenType::FloatLiteral => {
                 let num = tk.lexme.unwrap().parse::<f64>().unwrap();
                 Ok(Expression::Float_Literal(num))
-            },
+            }
             TokenType::StringLit => Ok(Expression::String_Literal(tk.lexme.unwrap())),
             TokenType::LPAREN => {
                 let expr = self.parse_expression()?;
                 self.consume(TokenType::RPAREN)?;
                 Ok(expr)
-            },
+            }
             TokenType::Identifier => Ok(Expression::Identifier(tk.lexme.unwrap())),
-            TokenType::Null=>Ok(Expression::Null),
-            _ => Err(format!("found {:?} previous to {:?}", self.peek(),self.previous())),
+            TokenType::Null => Ok(Expression::Null),
+            _ => Err(format!(
+                "found {:?} previous to {:?}",
+                self.peek(),
+                self.previous()
+            )),
         }
     }
 
-    fn previous(&self)->&Token{
-        &self.tokens[self.current -1]
+    fn previous(&self) -> &Token {
+        &self.tokens[self.current - 1]
     }
     fn consume(&mut self, token: TokenType) -> Result<Token, String> {
         if self.peek().token_type == token {

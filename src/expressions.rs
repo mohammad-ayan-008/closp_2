@@ -1,4 +1,4 @@
-#![allow(dead_code, non_camel_case_types,clippy::upper_case_acronyms)]
+#![allow(dead_code, non_camel_case_types, clippy::upper_case_acronyms)]
 
 use crate::statements::Type;
 #[derive(Debug)]
@@ -19,13 +19,12 @@ pub enum Binaryop {
     BITOR,
 }
 
-
 #[derive(Debug)]
-pub enum UnaryOP{
+pub enum UnaryOP {
     Negate,
     Adressof,
     Dereference,
-    Not
+    Not,
 }
 
 #[derive(Debug)]
@@ -39,19 +38,18 @@ pub enum Expression {
         token: UnaryOP,
         exp: Box<Expression>,
     },
-    Cast{
-        expected:Type,
-        expr:Box<Expression>,
+    Cast {
+        expected: Type,
+        expr: Box<Expression>,
     },
-    FunctionCall{
-        name:String,
-        args:Vec<Expression>
+    FunctionCall {
+        name: String,
+        args: Vec<Expression>,
     },
     Float_Literal(f64),
     Int_Literal(i64),
     String_Literal(String),
+    Bool_Literal(bool),
     Identifier(String),
     Null,
 }
-
-
