@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    expressions::{Binaryop, Expression},
+    expressions::{Binaryop, Expression, UnaryOP},
     statements::{self, Block, Function, Item, Parameter, Program, Statement, Type, Variable},
 };
 
@@ -182,9 +182,23 @@ impl SemanticAnalyzer {
         match &statement {
             Statement::Variable(a) => self.analyze_var(a),
             Statement::Block(a) => todo!(),
-            Statement::Return(a) => todo!(),
+            Statement::Return(a) => {
+                if a.is_none(){
+                    self.error.push("expected return but not found".to_string());
+                    return;
+                }
+                let exp_ty = self.analyze_expression(a.as_ref().unwrap());
+                
+                if self.current_fn_return_ty != exp_ty{
+                    self.error.push(format!(
+                        "Expected return '{:?}' got '{:?}'",self.current_fn_return_ty,exp_ty
+                    ));
+                }
+            },
             Statement::Assignment(a) => todo!(),
-            Statement::ExpressionStatement(a) => todo!(),
+            Statement::ExpressionStatement(a) => {
+                self.analyze_expression(a);
+            },
         }
     }
     pub fn analyze_var(&mut self, var: &Variable) {
@@ -215,7 +229,7 @@ impl SemanticAnalyzer {
             Expression::Bool_Literal(_) => Some(Type::Boolean),
             Expression::Char_Literal(_) =>Some(Type::Char),
             Expression::Identifier(name) => {
-                if let Some(a) = self.look_up(&name) {
+                if let Some(a) = self.look_up(name) {
                     let sym_type = &a.type_;
                     //a.is_used = true;
                     Some(sym_type.clone())
@@ -224,6 +238,85 @@ impl SemanticAnalyzer {
                     None
                 }
             },
+            Expression::Null => Some(Type::Null),
+            Expression::Cast { expected, expr }=>{
+                todo!()
+            },
+            Expression::FunctionCall { name, args }=>{
+
+                let fn_sig = match self.functions.get(name) {
+                    Some(a) =>a,
+                    None=>{
+                        self.error.push(format!("Function '{}' not declared ",name));
+                        return None;
+                    }
+                };
+                let ret_ty = fn_sig.return_type.clone();
+                //arity check 
+                if fn_sig.params.len() != args.len(){
+                    self.error.push(
+                        format!(
+                          "Function '{}' expected '{}' git '{}' ",
+                           name,
+                           fn_sig.params.len(),
+                           args.len()
+                        )
+                    );
+                    return None;
+                } 
+                let args_fn = fn_sig.params.clone();
+                let args_ty:Vec<Option<Type>> = args.iter().map(|a| self.analyze_expression(a)).collect();
+
+                for (expr,expected_ty) in args_ty.iter().zip(args_fn){
+                    let exp_ty = match expr {
+                        Some(a) =>a,
+                        None=>{
+                            self.error.push(format!(
+                                "Uknown type '{:?}'",expr
+                            ));
+                            return None;
+                        }
+                    };
+
+                    if *exp_ty != expected_ty {
+                             self.error.push(format!(
+                                "Expected type '{:?}'  found '{:?}'",expected_ty,exp_ty
+                            ));
+                        return None;
+                    }
+                }
+
+                Some(ret_ty)
+
+
+
+                // let fn_params_ty= args.iter().map(|a| self.analyze_expression(a).clone()).collect::<Vec<Option<Type>>>();
+                //
+                // let fns = self.functions.get(name);
+                //
+                // if let Some(a) = fns{
+                //     let ret_type = a.return_type.clone();
+                //     if args.len() != fn_params_ty.len(){
+                //        self.error.push(format!("Function '{}' args mismatch",name));
+                //        return None;
+                //     }
+                //
+                //     for (i,ty) in a.params.iter().enumerate(){
+                //         if fn_params_ty[i].as_ref() != Some(ty){
+                //           self.error.push(format!("Function '{}' args mismatch",name));
+                //           return None;
+                //         }
+                //     }
+                //     Some(ret_type)
+                // }else {
+                //     self.error.push(format!("Function '{}' did not declared",name));
+                //     None
+                // }
+            }
+            Expression::Unary { token, exp }=>{
+                let expr =self.analyze_expression(exp);
+                self.analyze_unary(token,expr)
+            }
             Expression::Binary { lhs, op, rhs }=>{
                 let lhs = self.analyze_expression(lhs);
                 let rhs = self.analyze_expression(rhs);
@@ -233,19 +326,53 @@ impl SemanticAnalyzer {
         }
     }
 
+    pub fn analyze_unary(&mut self,op:&UnaryOP,expression:Option<Type>)->Option<Type>{
+        match (op, expression){
+            (UnaryOP::Negate , Some(Type::Int))=> Some(Type::Int),
+            (UnaryOP::Negate , Some(Type::Float))=> Some(Type::Float),
+            
+            (UnaryOP::Not,Some(Type::Int))=>Some(Type::Int),
+            (UnaryOP::Not,Some(Type::Boolean))=>Some(Type::Boolean),
+
+            (UnaryOP::Adressof,Some(a))=>Some(Type::Pointer(Box::new(a))),
+            (UnaryOP::Dereference,Some(Type::Pointer(a)))=> Some(*a),
+            (UnaryOP::Dereference,Some(_non_ptr))=> {
+                self.error.push("Expected a pointer type".to_string());
+                None
+            },
+
+            (_,_)=>None,
+        }
+    }
     pub fn analyze_binary_expression(&mut self,lhs:Option<Type>,op:&Binaryop,rhs:Option<Type>)->Option<Type>{
        match (lhs,op,rhs) {
-            (Some(a),Binaryop::ADD,Some(Type::Int))=> {
-                if matches!(a,Type::Int | Type::Boolean){                
-                    return Some(Type::Int);
-                }else if matches!(a,Type::Float){
-                    return Some(Type::Float);
-                }
-                None 
-            },
-            (Some(Type::Int),Binaryop::ADD,Some(Type::Float))=> Some(Type::Float),
-
+            (Some(Type::Int),Binaryop::ADD,Some(Type::Int))=>Some(Type::Int),  
+            (Some(Type::Int),Binaryop::DIV,Some(Type::Int))=>Some(Type::Int),  
+            (Some(Type::Int),Binaryop::SUB,Some(Type::Int))=>Some(Type::Int),  
+            (Some(Type::Int),Binaryop::MUL,Some(Type::Int))=>Some(Type::Int),
             
+            (Some(Type::Int),Binaryop::BITAND,Some(Type::Int))=>Some(Type::Int),
+            (Some(Type::Int),Binaryop::BITOR,Some(Type::Int))=>Some(Type::Int),
+            
+
+            (Some(Type::Int | Type::Float ),Binaryop::GT,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
+            (Some(Type::Int | Type::Float ),Binaryop::LT,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
+            (Some(Type::Int | Type::Float ),Binaryop::LTE,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
+            (Some(Type::Int | Type::Float ),Binaryop::GTE,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
+            (Some(Type::Int | Type::Float ),Binaryop::EqualEqual,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
+            (Some(Type::Int | Type::Float ),Binaryop::NotEq,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
+            
+            (Some(Type::Int),Binaryop::ADD,Some(Type::Float))=> Some(Type::Float),
+            (Some(Type::Float),Binaryop::ADD,Some(Type::Float))=> Some(Type::Float),
+
+            (Some(Type::Int),Binaryop::ADD,Some(Type::Char))=> Some(Type::Int),
+            (Some(Type::Char),Binaryop::ADD,Some(Type::Int))=> Some(Type::Int),
+            
+            (Some(Type::Boolean),Binaryop::ADD,Some(Type::Int))=> Some(Type::Int),
+            (Some(Type::Int),Binaryop::ADD,Some(Type::Boolean))=> Some(Type::Int),
+
+
+
             (_,_,_) =>None,
        } 
     }
