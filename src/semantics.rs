@@ -23,6 +23,7 @@ pub enum SymbolKind {
 pub struct FunctionSignature {
     return_type: Type,
     params: Vec<Type>,
+    is_var_args:bool
 }
 
 pub struct SemanticAnalyzer {
@@ -31,13 +32,22 @@ pub struct SemanticAnalyzer {
     current_fn_return_ty: Option<Type>,
     current_scope: usize,
     main_func_count: usize,
+    return_count: usize,
     error: Vec<String>,
 }
 impl SemanticAnalyzer {
     pub fn new() -> Self {
+        let mut map = HashMap::new();
+        let signature = FunctionSignature{
+            return_type:Type::Int,
+            params:vec![Type::Str],
+            is_var_args:true,
+        };
+        map.insert("printf".to_string(), signature);
         Self {
+            return_count: 0,
             scopes: vec![HashMap::new()],
-            functions: HashMap::new(),
+            functions: map,
             current_scope: 0,
             current_fn_return_ty: None,
             error: vec![],
@@ -84,7 +94,6 @@ impl SemanticAnalyzer {
 
     pub fn look_up(&self, name: &str) -> Option<&Symbol> {
         for i in (0..=self.current_scope).rev() {
-
             if let Some(symbol) = self.scopes[i].get(name) {
                 return Some(symbol);
             }
@@ -122,6 +131,7 @@ impl SemanticAnalyzer {
                 let fn_sig = FunctionSignature {
                     return_type: a.return_type.clone(),
                     params,
+                    is_var_args:false
                 };
                 if let Err(e) = self.insert_function(a.name.clone(), fn_sig) {
                     self.error.push(e);
@@ -167,8 +177,13 @@ impl SemanticAnalyzer {
                 self.error.push(e);
             }
         }
+
         self.analyze_block(&func.body);
         self.exit_scope();
+        if self.return_count == 0 && func.return_type != Type::Void {
+            self.error.push("Expected return stmt".to_string());
+        }
+        self.return_count = 0;
         self.current_fn_return_ty = None;
     }
 
@@ -181,24 +196,43 @@ impl SemanticAnalyzer {
     pub fn analyze_statement(&mut self, statement: &Statement) {
         match &statement {
             Statement::Variable(a) => self.analyze_var(a),
-            Statement::Block(a) => todo!(),
+            Statement::Block(a) => {
+                self.enter_scope();
+                self.analyze_block(a);
+                self.exit_scope();
+            }
             Statement::Return(a) => {
-                if a.is_none(){
+                if a.is_none() {
                     self.error.push("expected return but not found".to_string());
                     return;
                 }
                 let exp_ty = self.analyze_expression(a.as_ref().unwrap());
-                
-                if self.current_fn_return_ty != exp_ty{
+
+                if self.current_fn_return_ty != exp_ty {
                     self.error.push(format!(
-                        "Expected return '{:?}' got '{:?}'",self.current_fn_return_ty,exp_ty
+                        "Expected return '{:?}' got '{:?}'",
+                        self.current_fn_return_ty, exp_ty
                     ));
                 }
-            },
-            Statement::Assignment(a) => todo!(),
+                if self.return_count == 0 {
+                    self.return_count += 1;
+                } else {
+                    self.error.push("unreachable return ".to_lowercase());
+                }
+            }
+            Statement::Assignment(a) => {
+                if matches!(a.target, Expression::FunctionCall { name: _, args: _ }) {
+                    self.error
+                        .push("Cannot assign a function call statement".to_string());
+                }
+                if self.analyze_expression(&a.target) != self.analyze_expression(&a.value) {
+                    self.error
+                        .push("Cannot assign a type with different type".to_string());
+                }
+            }
             Statement::ExpressionStatement(a) => {
                 self.analyze_expression(a);
-            },
+            }
         }
     }
     pub fn analyze_var(&mut self, var: &Variable) {
@@ -227,7 +261,7 @@ impl SemanticAnalyzer {
             Expression::Float_Literal(_) => Some(Type::Float),
             Expression::String_Literal(_) => Some(Type::Str),
             Expression::Bool_Literal(_) => Some(Type::Boolean),
-            Expression::Char_Literal(_) =>Some(Type::Char),
+            Expression::Char_Literal(_) => Some(Type::Char),
             Expression::Identifier(name) => {
                 if let Some(a) = self.look_up(name) {
                     let sym_type = &a.type_;
@@ -237,58 +271,58 @@ impl SemanticAnalyzer {
                     self.error.push(format!("undeclared variable '{}'", name));
                     None
                 }
-            },
+            }
             Expression::Null => Some(Type::Null),
-            Expression::Cast { expected, expr }=>{
-                todo!()
-            },
-            Expression::FunctionCall { name, args }=>{
-
+            Expression::Cast { expected, expr } => self.parse_cast(expected, expr),
+            Expression::FunctionCall { name, args } => {
                 let fn_sig = match self.functions.get(name) {
-                    Some(a) =>a,
-                    None=>{
-                        self.error.push(format!("Function '{}' not declared ",name));
+                    Some(a) => a,
+                    None => {
+                        self.error
+                            .push(format!("Function '{}' not declared ", name));
                         return None;
                     }
                 };
-                let ret_ty = fn_sig.return_type.clone();
-                //arity check 
-                if fn_sig.params.len() != args.len(){
-                    self.error.push(
-                        format!(
-                          "Function '{}' expected '{}' git '{}' ",
-                           name,
-                           fn_sig.params.len(),
-                           args.len()
-                        )
-                    );
-                    return None;
-                } 
-                let args_fn = fn_sig.params.clone();
-                let args_ty:Vec<Option<Type>> = args.iter().map(|a| self.analyze_expression(a)).collect();
 
-                for (expr,expected_ty) in args_ty.iter().zip(args_fn){
+                let ret_ty = fn_sig.return_type.clone();
+                
+
+                //arity check
+                if fn_sig.params.len() != args.len() && !fn_sig.is_var_args{
+                    self.error.push(format!(
+                        "Function '{}' expected '{}' git '{}' ",
+                        name,
+                        fn_sig.params.len(),
+                        args.len()
+                    ));
+                    return None;
+                }
+                let args_fn = fn_sig.params.clone();
+                let mul_arg = fn_sig.is_var_args;
+                let args_ty: Vec<Option<Type>> =
+                    args.iter().map(|a| self.analyze_expression(a)).collect();
+
+                for (expr, expected_ty) in args_ty.iter().zip(args_fn) {
                     let exp_ty = match expr {
-                        Some(a) =>a,
-                        None=>{
-                            self.error.push(format!(
-                                "Uknown type '{:?}'",expr
-                            ));
+                        Some(a) => a,
+                        None => {
+                            self.error.push(format!("Uknown type '{:?}'", expr));
                             return None;
                         }
                     };
 
-                    if *exp_ty != expected_ty {
-                             self.error.push(format!(
-                                "Expected type '{:?}'  found '{:?}'",expected_ty,exp_ty
-                            ));
+                    if mul_arg{
+                        break;
+                    }else if *exp_ty != expected_ty{
+                        self.error.push(format!(
+                            "Expected type '{:?}'  found '{:?}'",
+                            expected_ty, exp_ty
+                        ));
                         return None;
                     }
                 }
 
                 Some(ret_ty)
-
-
 
                 // let fn_params_ty= args.iter().map(|a| self.analyze_expression(a).clone()).collect::<Vec<Option<Type>>>();
                 //
@@ -313,67 +347,98 @@ impl SemanticAnalyzer {
                 //     None
                 // }
             }
-            Expression::Unary { token, exp }=>{
-                let expr =self.analyze_expression(exp);
-                self.analyze_unary(token,expr)
+            Expression::Unary { token, exp } => {
+                let expr = self.analyze_expression(exp);
+                self.analyze_unary(token, expr)
             }
-            Expression::Binary { lhs, op, rhs }=>{
+            Expression::Binary { lhs, op, rhs } => {
                 let lhs = self.analyze_expression(lhs);
                 let rhs = self.analyze_expression(rhs);
-                self.analyze_binary_expression(lhs, op,rhs)
-            },
-            _ => todo!(),
+                self.analyze_binary_expression(lhs, op, rhs)
+            }
         }
     }
+    pub fn parse_cast(&mut self, expected: &Type, expr: &Expression) -> Option<Type> {
+        let exp_ty = self.analyze_expression(expr);
+        match expected {
+            Type::Void => {
+                self.error.push("Cannot cast to void".to_string());
+                None
+            }
+            Type::Int => {
+                if !matches!(exp_ty, Some(Type::Pointer(_) | Type::Int | Type::Char)){
+                    self.error.push("Cannot cast to int type".to_string());
+                    return None;
+                }
+                Some(Type::Int)
+            }
+            _ => Some(expected.clone()),
+        }
+    }
+    pub fn analyze_unary(&mut self, op: &UnaryOP, expression: Option<Type>) -> Option<Type> {
+        match (op, expression) {
+            (UnaryOP::Negate, Some(Type::Int)) => Some(Type::Int),
+            (UnaryOP::Negate, Some(Type::Float)) => Some(Type::Float),
 
-    pub fn analyze_unary(&mut self,op:&UnaryOP,expression:Option<Type>)->Option<Type>{
-        match (op, expression){
-            (UnaryOP::Negate , Some(Type::Int))=> Some(Type::Int),
-            (UnaryOP::Negate , Some(Type::Float))=> Some(Type::Float),
-            
-            (UnaryOP::Not,Some(Type::Int))=>Some(Type::Int),
-            (UnaryOP::Not,Some(Type::Boolean))=>Some(Type::Boolean),
+            (UnaryOP::Not, Some(Type::Int)) => Some(Type::Int),
+            (UnaryOP::Not, Some(Type::Boolean)) => Some(Type::Boolean),
 
-            (UnaryOP::Adressof,Some(a))=>Some(Type::Pointer(Box::new(a))),
-            (UnaryOP::Dereference,Some(Type::Pointer(a)))=> Some(*a),
-            (UnaryOP::Dereference,Some(_non_ptr))=> {
+            (UnaryOP::Adressof, Some(a)) => Some(Type::Pointer(Box::new(a))),
+            (UnaryOP::Dereference, Some(Type::Pointer(a))) => Some(*a),
+            (UnaryOP::Dereference, Some(_non_ptr)) => {
                 self.error.push("Expected a pointer type".to_string());
                 None
-            },
+            }
 
-            (_,_)=>None,
+            (_, _) => None,
         }
     }
-    pub fn analyze_binary_expression(&mut self,lhs:Option<Type>,op:&Binaryop,rhs:Option<Type>)->Option<Type>{
-       match (lhs,op,rhs) {
-            (Some(Type::Int),Binaryop::ADD,Some(Type::Int))=>Some(Type::Int),  
-            (Some(Type::Int),Binaryop::DIV,Some(Type::Int))=>Some(Type::Int),  
-            (Some(Type::Int),Binaryop::SUB,Some(Type::Int))=>Some(Type::Int),  
-            (Some(Type::Int),Binaryop::MUL,Some(Type::Int))=>Some(Type::Int),
-            
-            (Some(Type::Int),Binaryop::BITAND,Some(Type::Int))=>Some(Type::Int),
-            (Some(Type::Int),Binaryop::BITOR,Some(Type::Int))=>Some(Type::Int),
-            
+    pub fn analyze_binary_expression(
+        &mut self,
+        lhs: Option<Type>,
+        op: &Binaryop,
+        rhs: Option<Type>,
+    ) -> Option<Type> {
+        match (lhs, op, rhs) {
+            (Some(Type::Int), Binaryop::ADD, Some(Type::Int)) => Some(Type::Int),
+            (Some(Type::Int), Binaryop::DIV, Some(Type::Int)) => Some(Type::Int),
+            (Some(Type::Int), Binaryop::SUB, Some(Type::Int)) => Some(Type::Int),
+            (Some(Type::Int), Binaryop::MUL, Some(Type::Int)) => Some(Type::Int),
 
-            (Some(Type::Int | Type::Float ),Binaryop::GT,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
-            (Some(Type::Int | Type::Float ),Binaryop::LT,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
-            (Some(Type::Int | Type::Float ),Binaryop::LTE,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
-            (Some(Type::Int | Type::Float ),Binaryop::GTE,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
-            (Some(Type::Int | Type::Float ),Binaryop::EqualEqual,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
-            (Some(Type::Int | Type::Float ),Binaryop::NotEq,Some(Type::Int | Type::Float))=>Some(Type::Boolean),  
-            
-            (Some(Type::Int),Binaryop::ADD,Some(Type::Float))=> Some(Type::Float),
-            (Some(Type::Float),Binaryop::ADD,Some(Type::Float))=> Some(Type::Float),
+            (Some(Type::Int), Binaryop::BITAND, Some(Type::Int)) => Some(Type::Int),
+            (Some(Type::Int), Binaryop::BITOR, Some(Type::Int)) => Some(Type::Int),
 
-            (Some(Type::Int),Binaryop::ADD,Some(Type::Char))=> Some(Type::Int),
-            (Some(Type::Char),Binaryop::ADD,Some(Type::Int))=> Some(Type::Int),
-            
-            (Some(Type::Boolean),Binaryop::ADD,Some(Type::Int))=> Some(Type::Int),
-            (Some(Type::Int),Binaryop::ADD,Some(Type::Boolean))=> Some(Type::Int),
+            (Some(Type::Int | Type::Float), Binaryop::GT, Some(Type::Int | Type::Float)) => {
+                Some(Type::Boolean)
+            }
+            (Some(Type::Int | Type::Float), Binaryop::LT, Some(Type::Int | Type::Float)) => {
+                Some(Type::Boolean)
+            }
+            (Some(Type::Int | Type::Float), Binaryop::LTE, Some(Type::Int | Type::Float)) => {
+                Some(Type::Boolean)
+            }
+            (Some(Type::Int | Type::Float), Binaryop::GTE, Some(Type::Int | Type::Float)) => {
+                Some(Type::Boolean)
+            }
+            (
+                Some(Type::Int | Type::Float),
+                Binaryop::EqualEqual,
+                Some(Type::Int | Type::Float),
+            ) => Some(Type::Boolean),
+            (Some(Type::Int | Type::Float), Binaryop::NotEq, Some(Type::Int | Type::Float)) => {
+                Some(Type::Boolean)
+            }
 
+            (Some(Type::Int), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),
+            (Some(Type::Float), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),
 
+            (Some(Type::Int), Binaryop::ADD, Some(Type::Char)) => Some(Type::Int),
+            (Some(Type::Char), Binaryop::ADD, Some(Type::Int)) => Some(Type::Int),
 
-            (_,_,_) =>None,
-       } 
+            (Some(Type::Boolean), Binaryop::ADD, Some(Type::Int)) => Some(Type::Int),
+            (Some(Type::Int), Binaryop::ADD, Some(Type::Boolean)) => Some(Type::Int),
+
+            (_, _, _) => None,
+        }
     }
 }

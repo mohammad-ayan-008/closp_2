@@ -1,12 +1,12 @@
 fn int dayem(int a){
 
-
-  return 0;
+  return (int) 'a';
 }
 
 fn int main(){
   char a = 'a';
   dayem(1);
-
+  a = 'q';
+  printf("lol %c",a);
   return 1;
 }

@@ -186,8 +186,8 @@ impl Parser {
             TokenType::Void => {
                 self.advance();
                 Type::Void
-            },
-            TokenType::Char =>{
+            }
+            TokenType::Char => {
                 self.advance();
                 Type::Char
             }
@@ -355,7 +355,7 @@ impl Parser {
                 Ok(expr)
             }
             TokenType::Identifier => Ok(Expression::Identifier(tk.lexme.unwrap())),
-            TokenType::CharLit =>{
+            TokenType::CharLit => {
                 let char_lit = tk.lexme.unwrap().chars().nth(0).unwrap();
                 Ok(Expression::Char_Literal(char_lit))
             }

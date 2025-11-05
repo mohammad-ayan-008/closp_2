@@ -48,7 +48,6 @@ pub enum TokenType {
     Void,
     Null,
 
-   
     Comma,
     Semicolon,
 }
@@ -144,12 +143,12 @@ impl Lexer {
             .collect::<String>();
         self.push_token_2(TokenType::StringLit, string);
     }
-    fn parse_char(&mut self){
-        while !self.eof() && self.peek() != '\''{
+    fn parse_char(&mut self) {
+        while !self.eof() && self.peek() != '\'' {
             self.advance();
         }
         self.advance();
-        let string = self.stream[self.start+1..self.current-1]
+        let string = self.stream[self.start + 1..self.current - 1]
             .iter()
             .collect::<String>();
         self.push_token_2(TokenType::CharLit, string);
@@ -178,7 +177,7 @@ impl Lexer {
             '<' => self.add_double_check('=', TokenType::LTE, TokenType::LT),
             '|' => self.add_double_check('|', TokenType::OR, TokenType::BitwiseOr),
             '&' => self.add_double_check('&', TokenType::AND, TokenType::BitwiseAnd),
-            '\''=> self.parse_char(),
+            '\'' => self.parse_char(),
             '"' => self.parse_string(),
             a if a.is_ascii_digit() => {
                 while self.peek().is_ascii_digit() {
