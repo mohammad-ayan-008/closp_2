@@ -19,7 +19,9 @@ pub enum SymbolKind {
     Parameter,
     Variable,
     Function,
+    ExternFunction
 }
+#[derive(Clone)]
 pub struct FunctionSignature {
     return_type: Type,
     params: Vec<Type>,
@@ -28,6 +30,7 @@ pub struct FunctionSignature {
 
 pub struct SemanticAnalyzer {
     scopes: Vec<HashMap<String, Symbol>>,
+    extern_table:HashMap<String,FunctionSignature>,
     functions: HashMap<String, FunctionSignature>,
     current_fn_return_ty: Option<Type>,
     current_scope: usize,
@@ -47,7 +50,8 @@ impl SemanticAnalyzer {
         Self {
             return_count: 0,
             scopes: vec![HashMap::new()],
-            functions: map,
+            functions: map.clone(),
+            extern_table:map,
             current_scope: 0,
             current_fn_return_ty: None,
             error: vec![],
@@ -119,7 +123,6 @@ impl SemanticAnalyzer {
         }
         Ok(())
     }
-
     pub fn collect_fun_details(&mut self, item: &Item) {
         match item {
             Item::Function(a) => {
