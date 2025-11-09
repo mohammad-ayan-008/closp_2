@@ -19,18 +19,18 @@ pub enum SymbolKind {
     Parameter,
     Variable,
     Function,
-    ExternFunction
+    ExternFunction,
 }
 #[derive(Clone)]
 pub struct FunctionSignature {
     return_type: Type,
     params: Vec<Type>,
-    is_var_args:bool
+    is_var_args: bool,
 }
 
 pub struct SemanticAnalyzer {
     scopes: Vec<HashMap<String, Symbol>>,
-    extern_table:HashMap<String,FunctionSignature>,
+    extern_table: HashMap<String, FunctionSignature>,
     functions: HashMap<String, FunctionSignature>,
     current_fn_return_ty: Option<Type>,
     current_scope: usize,
@@ -41,17 +41,17 @@ pub struct SemanticAnalyzer {
 impl SemanticAnalyzer {
     pub fn new() -> Self {
         let mut map = HashMap::new();
-        let signature = FunctionSignature{
-            return_type:Type::Int,
-            params:vec![Type::Str],
-            is_var_args:true,
+        let signature = FunctionSignature {
+            return_type: Type::Int,
+            params: vec![Type::Str],
+            is_var_args: true,
         };
         map.insert("printf".to_string(), signature);
         Self {
             return_count: 0,
             scopes: vec![HashMap::new()],
             functions: map.clone(),
-            extern_table:map,
+            extern_table: map,
             current_scope: 0,
             current_fn_return_ty: None,
             error: vec![],
@@ -73,11 +73,6 @@ impl SemanticAnalyzer {
     }
 
     pub fn insert(&mut self, name: String, symbol: Symbol) -> Result<(), String> {
-        if let Some(scope) = self.scopes.get(self.current_scope)
-            && scope.contains_key(&name)
-        {
-            return Err(format!("Symbol '{}' is already defined ", name));
-        }
         if let Some(scope) = self.scopes.get_mut(self.current_scope) {
             scope.insert(name, symbol);
         }
@@ -90,7 +85,7 @@ impl SemanticAnalyzer {
         funsig: FunctionSignature,
     ) -> Result<(), String> {
         if self.functions.contains_key(&name) {
-            return Err(format!("Symbol '{}' already defined ", name));
+            return Err(format!("Symbol fn '{}' already defined ", name));
         }
         self.functions.insert(name, funsig);
         Ok(())
@@ -134,7 +129,7 @@ impl SemanticAnalyzer {
                 let fn_sig = FunctionSignature {
                     return_type: a.return_type.clone(),
                     params,
-                    is_var_args:false
+                    is_var_args: false,
                 };
                 if let Err(e) = self.insert_function(a.name.clone(), fn_sig) {
                     self.error.push(e);
@@ -240,10 +235,13 @@ impl SemanticAnalyzer {
     }
     pub fn analyze_var(&mut self, var: &Variable) {
         if let Some(a) = &var.expression
-            && let Some(a) = self.analyze_expression(a)
-            && var.data_type != a
+            && let Some(type_) = self.analyze_expression(a)
+            && var.data_type != type_
         {
-            self.error.push("type mismatch ".to_string());
+            self.error.push(format!(
+                "type mismatch lhs '{:?}' rhs '{:?}'",
+                var.data_type, type_
+            ));
         }
 
         let symbol = Symbol {
@@ -262,7 +260,7 @@ impl SemanticAnalyzer {
         match expression {
             Expression::Int_Literal(_) => Some(Type::Int),
             Expression::Float_Literal(_) => Some(Type::Float),
-            Expression::String_Literal(_) => Some(Type::Str),
+            Expression::String_Literal(_) => Some(Type::Pointer(Box::new(Type::Char))),
             Expression::Bool_Literal(_) => Some(Type::Boolean),
             Expression::Char_Literal(_) => Some(Type::Char),
             Expression::Identifier(name) => {
@@ -288,10 +286,9 @@ impl SemanticAnalyzer {
                 };
 
                 let ret_ty = fn_sig.return_type.clone();
-                
 
                 //arity check
-                if fn_sig.params.len() != args.len() && !fn_sig.is_var_args{
+                if fn_sig.params.len() != args.len() && !fn_sig.is_var_args {
                     self.error.push(format!(
                         "Function '{}' expected '{}' git '{}' ",
                         name,
@@ -314,9 +311,9 @@ impl SemanticAnalyzer {
                         }
                     };
 
-                    if mul_arg{
+                    if mul_arg {
                         break;
-                    }else if *exp_ty != expected_ty{
+                    } else if *exp_ty != expected_ty {
                         self.error.push(format!(
                             "Expected type '{:?}'  found '{:?}'",
                             expected_ty, exp_ty
@@ -369,7 +366,7 @@ impl SemanticAnalyzer {
                 None
             }
             Type::Int => {
-                if !matches!(exp_ty, Some(Type::Pointer(_) | Type::Int | Type::Char)){
+                if !matches!(exp_ty, Some(Type::Pointer(_) | Type::Int | Type::Char)) {
                     self.error.push("Cannot cast to int type".to_string());
                     return None;
                 }

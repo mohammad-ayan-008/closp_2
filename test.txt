@@ -1,12 +1,15 @@
-fn int dayem(int a){
 
-  return (int) 'a';
-}
+fn int main(){ 
 
-fn int main(){
-  char a = 'a';
-  dayem(1);
-  a = 'q';
-  printf("lol %c",a);
-  return 1;
+  char* name = "ayan \n";
+  name = "lol\n";
+  printf(name);
+
+  int a = 5;
+  a = 6;
+  printf("%d \n",a);
+  int* c = &a;
+  *c = 100;
+  printf("%d \n",a);
+  return 0;
 }
