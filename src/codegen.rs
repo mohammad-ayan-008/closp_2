@@ -300,6 +300,7 @@ impl<'ctx> Codegen<'ctx> {
                     Err("func not found".to_string())
                 }
             }
+            
             Expression::Binary { lhs, op, rhs } => {
                 let lhs = self.compile_expressions(lhs)?;
                 let rhs = self.compile_expressions(rhs)?;
