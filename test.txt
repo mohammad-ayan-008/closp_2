@@ -1,15 +1,29 @@
+fn int main(){  
+  float c = 5.1;
+  float *p = &c;
+  float **ptr = &p;
+  printf("%f\n",**ptr);
 
-fn int main(){ 
 
-  char* name = "ayan \n";
-  name = "lol\n";
-  printf(name);
+  char c = 'a';
+  char* ptr = &c;
+  char** ptr2 = &ptr;
+  char*** ptr3 = &ptr2;
+  printf("%c \n",***ptr3);
 
-  int a = 5;
-  a = 6;
-  printf("%d \n",a);
-  int* c = &a;
-  *c = 100;
-  printf("%d \n",a);
+  Str name="lmaao";
+  Str* nameref = &name;
+  
+  printf("%s \n",*nameref);
+  
+  bool b = true;
+  bool* ptrb1 = &b;
+  bool** ptrb2 = &ptrb1;
+  bool*** ptrb3 = &ptrb2;
+  printf("%d \n",***ptrb3);
+
+
+
   return 0;
 }
+

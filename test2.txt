@@ -48,3 +48,73 @@ fn int main(int a,int b,){
    test(123);
    return (int) (void*) (5+1/2);
 }
+
+
+
+Expression::Unary { token, exp } => {
+    match token {
+        expressions::UnaryOP::Adressof => {
+            // Compute address-of recursively
+            let mut current_exp = exp.as_ref();
+            loop {
+                match current_exp {
+                    // Handle nested & (like &&x)
+                    Expression::Unary {
+                        token: expressions::UnaryOP::Adressof,
+                        exp: inner,
+                    } => {
+                        current_exp = inner;
+                    }
+                    Expression::Identifier(ident) => {
+                        // Look up the variable in scope
+                        let (ptr, _logical_type, _stored_type, _cached_value) =
+                            self.look_up(ident).unwrap();
+
+                        // Return the pointer (i.e., address of the variable)
+                        return Ok(ptr.as_basic_value_enum());
+                    }
+                    _ => panic!("Expected identifier after &"),
+                }
+            }
+        }
+
+        expressions::UnaryOP::Dereference => {
+            // Dereference recursively
+            let mut current_expr = exp.as_ref();
+
+            loop {
+                match current_expr {
+                    // Handle nested * (like **p)
+                    Expression::Unary {
+                        token: expressions::UnaryOP::Dereference,
+                        exp: inner,
+                    } => {
+                        current_expr = inner;
+                    }
+                    Expression::Identifier(ident) => {
+                        // Look up the variable
+                        let (mut ptr, mut ty, stored_type, _) = self.look_up(ident).unwrap();
+
+                        // Load the value from the pointer
+                        let mut val = self.builder.build_load(stored_type, ptr, "load_ptr").unwrap();
+
+                        // Keep dereferencing while type is a pointer
+                        while let Type::Pointer(inner_ty) = ty {
+                            let llvm_inner_ty = self.llvm_type(&inner_ty).unwrap();
+                            val = self.builder
+                                .build_load(llvm_inner_ty, val.into_pointer_value(), "deref_val")
+                                .unwrap();
+                            ty = *inner_ty; // update type for next iteration
+                        }
+
+                        return Ok(val);
+                    }
+                    _ => panic!("Expected identifier after *"),
+                }
+            }
+        }
+
+        _ => panic!("Unhandled unary operator"),
+    }
+}
+

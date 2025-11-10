@@ -281,7 +281,9 @@ impl Parser {
             }
             TokenType::BitwiseAnd => {
                 let _token = self.advance();
-                let exp = self.parse_cast()?;
+                let exp = self.parse_unary()?;
+
+                println!("----> {:?}", exp);
                 Ok(Expression::Unary {
                     token: UnaryOP::Adressof,
                     exp: Box::new(exp),
@@ -290,6 +292,7 @@ impl Parser {
             TokenType::Bang => {
                 let _token = self.advance();
                 let exp = self.parse_cast()?;
+
                 Ok(Expression::Unary {
                     token: UnaryOP::Not,
                     exp: Box::new(exp),
@@ -297,7 +300,9 @@ impl Parser {
             }
             TokenType::STAR => {
                 let _token = self.advance();
-                let exp = self.parse_cast()?;
+                let exp = self.parse_unary()?;
+
+                println!("star {:?}", exp);
                 Ok(Expression::Unary {
                     token: UnaryOP::Dereference,
                     exp: Box::new(exp),
@@ -361,7 +366,7 @@ impl Parser {
             }
             TokenType::Null => Ok(Expression::Null),
             _ => Err(format!(
-                "found {:?} previous to {:?}",
+                "found primary {:?} previous to {:?}",
                 self.peek(),
                 self.previous()
             )),

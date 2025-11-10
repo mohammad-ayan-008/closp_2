@@ -1,15 +1,13 @@
-use std::{alloc, collections::HashMap, u32};
+use std::{collections::HashMap, ops::Deref};
 
 use inkwell::{
     AddressSpace,
     builder::Builder,
     context::Context,
     module::Module,
-    support::enable_llvm_pretty_stack_trace,
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, StringRadix},
-    values::{
-        AnyValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue,
-    },
+    passes::PassManager,
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
 };
 
 use crate::{
@@ -21,7 +19,17 @@ pub struct Codegen<'ctx> {
     context: &'ctx Context,
     pub module: Module<'ctx>,
     builder: Builder<'ctx>,
-    scope: Vec<HashMap<String, (PointerValue<'ctx>, BasicValueEnum<'ctx>)>>,
+    scope: Vec<
+        HashMap<
+            String,
+            (
+                PointerValue<'ctx>,
+                Type,
+                BasicTypeEnum<'ctx>,
+                BasicValueEnum<'ctx>,
+            ),
+        >,
+    >,
     current_fn: Option<FunctionValue<'ctx>>,
     functions: HashMap<String, FunctionValue<'ctx>>,
 }
@@ -37,19 +45,29 @@ impl<'ctx> Codegen<'ctx> {
     pub fn declare_variable(
         &mut self,
         name: String,
+        type_: Type,
+        type_enum: BasicTypeEnum<'ctx>,
         pointer_value: PointerValue<'ctx>,
         value: BasicValueEnum<'ctx>,
     ) {
         if let Some(a) = self.scope.last_mut() {
-            a.insert(name, (pointer_value, value));
+            a.insert(name, (pointer_value, type_, type_enum, value));
         }
     }
 
-    pub fn look_up(&self, name: &str) -> Option<&(PointerValue<'ctx>, BasicValueEnum<'ctx>)> {
+    pub fn look_up(
+        &self,
+        name: &str,
+    ) -> Option<(
+        PointerValue<'ctx>,
+        Type,
+        BasicTypeEnum<'ctx>,
+        BasicValueEnum<'ctx>,
+    )> {
         // search inner -> outer
         for scope in self.scope.iter().rev() {
             if let Some(entry) = scope.get(name) {
-                return Some(entry);
+                return Some(entry.clone());
             }
         }
         None
@@ -58,9 +76,12 @@ impl<'ctx> Codegen<'ctx> {
     pub fn llvm_type(&mut self, ty: &Type) -> Result<BasicTypeEnum<'ctx>, String> {
         match ty {
             Type::Int => Ok(self.context.i64_type().into()),
-            Type::Char => Ok(self.context.ptr_type(AddressSpace::default()).into()),
+
+            Type::Char => Ok(self.context.i8_type().into()),
             Type::Boolean => Ok(self.context.bool_type().into()),
+
             Type::Pointer(_inner) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
+
             Type::Null => Ok(self.context.ptr_type(AddressSpace::default()).into()),
             Type::Str => Ok(self.context.ptr_type(AddressSpace::default()).into()),
             Type::Float => Ok(self.context.f64_type().into()),
@@ -119,17 +140,17 @@ impl<'ctx> Codegen<'ctx> {
             let type_ = self.llvm_type(&j.type_).unwrap();
             let alloc = self.builder.build_alloca(type_, "nasty").unwrap();
             self.builder.build_store(alloc, param_ll).unwrap();
-            self.declare_variable(j.name.clone(), alloc, param_ll);
+            self.declare_variable(j.name.clone(), j.type_.clone(), type_, alloc, param_ll);
         }
         self.generate_block(&f.body);
         self.exit_scope();
-        if f.return_type == Type::Void {
-            if let Some(a) = self.builder.get_insert_block() {
-                if a.get_terminator().is_none() {
-                    self.builder.build_return(None).unwrap();
-                }
-            }
+        if f.return_type == Type::Void
+            && let Some(a) = self.builder.get_insert_block()
+            && a.get_terminator().is_none()
+        {
+            self.builder.build_return(None).unwrap();
         }
+        self.mem_2_reg_pass(func);
         self.functions.insert(f.name.to_string(), func);
     }
 
@@ -168,7 +189,7 @@ impl<'ctx> Codegen<'ctx> {
                 let ty = self.llvm_type(type_).unwrap();
                 let alloc = self.builder.build_alloca(ty, &name.clone()).unwrap();
                 self.builder.build_store(alloc, expr).unwrap();
-                self.declare_variable(name.clone(), alloc, expr);
+                self.declare_variable(name.clone(), a.data_type.clone(), ty, alloc, expr);
             }
             Statement::Assignment(a) => {
                 let expr = self.compile_expressions(&a.value).unwrap();
@@ -178,11 +199,11 @@ impl<'ctx> Codegen<'ctx> {
                         self.builder.build_store(look.0, expr).unwrap();
                     }
 
-                    Expression::Unary { token, exp } => {
+                    Expression::Unary { token: _, exp } => {
                         // we expect token == Dereference here
                         if let Expression::Identifier(name) = &**exp {
                             // lookup the alloca that holds the pointer
-                            let (ptr_to_ptr, _) = self
+                            let (ptr_to_ptr, _, _, _) = self
                                 .look_up(name.as_str())
                                 .ok_or_else(|| format!("pointer variable {} not found", name))
                                 .unwrap();
@@ -191,10 +212,11 @@ impl<'ctx> Codegen<'ctx> {
                             // we know ptr_to_ptr is a PointerValue pointing to some pointer type like i64*
                             // to load it we must pass the element type of ptr_to_ptr (which is a pointer type)
                             let ptr_element_type = ptr_to_ptr.get_type(); // BasicTypeEnum
+                            println!(" Debug {:?} {:?}", exp, ptr_element_type);
                             // ptr_element_type should be a pointer type (BasicTypeEnum::PointerType)
                             let loaded_ptr_val = self
                                 .builder
-                                .build_load(ptr_element_type, *ptr_to_ptr, "load_ptr")
+                                .build_load(ptr_element_type, ptr_to_ptr, "load_ptr")
                                 .unwrap();
 
                             // convert the loaded value to PointerValue so we can store through it
@@ -210,7 +232,12 @@ impl<'ctx> Codegen<'ctx> {
             _ => panic!("no rule"),
         }
     }
-
+    pub fn mem_2_reg_pass(&mut self, func: FunctionValue<'ctx>) {
+        //let manager = PassManager::create(&self.module);
+        // manager.
+        //  manager.initialize();
+        // manager.run_on(&func);
+    }
     pub fn compile_expressions(
         &mut self,
         expr: &Expression,
@@ -231,7 +258,21 @@ impl<'ctx> Codegen<'ctx> {
             Expression::Unary { token, exp } => {
                 match &token {
                     expressions::UnaryOP::Adressof => {
-                        if let Expression::Identifier(ident) = &**exp {
+                        let mut exps = exp.deref();
+
+                        println!("Ptr {:#?}", exp);
+                        if let Expression::Unary { token, exp } = exps {
+                            println!("Extered");
+                            println!("inner exp :{:?}", exp);
+                            if matches!(**exp,Expression::Unary { ref token, ref exp }) {
+                                return self.compile_expressions(exp);
+                            } else {
+                                println!("modified --------->");
+                                exps = exp;
+                            }
+                        }
+
+                        if let Expression::Identifier(ident) = exps {
                             let ptr = self.look_up(ident).ok_or_else(|| "not found".to_string())?;
                             Ok(ptr.0.as_basic_value_enum()) // pointer i64*
                         } else {
@@ -240,25 +281,45 @@ impl<'ctx> Codegen<'ctx> {
                     }
 
                     expressions::UnaryOP::Dereference => {
-                        if let Expression::Identifier(ident) = &**exp {
-                            let (ptr_to_ptr, _) = self.look_up(ident).ok_or("not found")?;
+                        let mut exps = exp.deref();
 
-                            // 1️⃣ Load the pointer itself (the address stored in the variable)
-                            let loaded_ptr = self
-                                .builder
-                                .build_load(
-                                    self.context.ptr_type(AddressSpace::default()),
-                                    *ptr_to_ptr,
-                                    "load_ptr",
-                                )
-                                .unwrap()
-                                .into_pointer_value();
+                        println!("Ptr {:#?}", exp);
+                        if let Expression::Unary { token, exp } = exps {
+                            println!("Extered");
+                            println!("inner exp :{:?}", exp);
+                            if matches!(**exp,Expression::Unary { ref token, ref exp }) {
+                                return self.compile_expressions(exp);
+                            } else {
+                                println!("modified --------->");
+                                exps = exp;
+                            }
+                        }
 
-                            // 2️⃣ Load the actual value from that address
-                            let val = self
+                        if let Expression::Identifier(ident) = exps {
+                            let (mut ptr, mut ty, stored_type, _) =
+                                self.look_up(ident).ok_or("not found")?;
+                            let mut val = self
                                 .builder
-                                .build_load(self.context.i64_type(), loaded_ptr, "deref_val")
+                                .build_load(stored_type, ptr, "load_ptr")
                                 .unwrap();
+                            
+                            while let Type::Pointer(inner_ty) = ty {
+                                let llvm_inner_ty = self.llvm_type(&inner_ty).unwrap();
+                                val = self
+                                    .builder
+                                    .build_load(
+                                        llvm_inner_ty,
+                                        val.into_pointer_value(),
+                                        "deref_val",
+                                    )
+                                    .unwrap();
+                                ty = *inner_ty; 
+                                
+                            }
+                            /* let pointee_type = match logical_type {
+                                Type::Pointer(inner_ty) => self.llvm_type(&inner_ty)?,
+                                _ => return Err("Tried to dereference non-pointer".to_string()),
+                            };*/
 
                             Ok(val.as_basic_value_enum())
                         } else {
@@ -300,11 +361,12 @@ impl<'ctx> Codegen<'ctx> {
                     Err("func not found".to_string())
                 }
             }
-            
+
             Expression::Binary { lhs, op, rhs } => {
                 let lhs = self.compile_expressions(lhs)?;
                 let rhs = self.compile_expressions(rhs)?;
                 let is_float = lhs.is_float_value() || rhs.is_float_value();
+                let is_pointer = lhs.is_pointer_value() || rhs.is_pointer_value();
                 match op {
                     crate::expressions::Binaryop::ADD => {
                         if is_float {
@@ -317,7 +379,8 @@ impl<'ctx> Codegen<'ctx> {
                                 )
                                 .unwrap()
                                 .into())
-                        } else {
+                        } 
+                        else {
                             Ok(self
                                 .builder
                                 .build_int_add(lhs.into_int_value(), rhs.into_int_value(), "fadd")
@@ -349,12 +412,14 @@ impl<'ctx> Codegen<'ctx> {
             }
 
             Expression::Identifier(name) => {
-                if let Some((alloc_ptr, _cached_value)) = self.look_up(name) {
-                    let elem_type = alloc_ptr.get_type();
-                    let loaded = self
-                        .builder
-                        .build_load(elem_type, *alloc_ptr, &format!("load_{name}"))
-                        .unwrap();
+                if let Some((alloc_ptr, ty, ty2, _cached_value)) = self.look_up(name) {
+                    println!(" Debug {:?} {:?}", name, ty);
+                    let ty = self.llvm_type(&ty).unwrap();
+                    let loaded = {
+                        self.builder
+                            .build_load(ty, alloc_ptr, &format!("load_{name}"))
+                            .unwrap()
+                    };
                     Ok(loaded)
                 } else {
                     Err(format!("variable {} not found", name))

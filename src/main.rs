@@ -5,10 +5,14 @@ mod parser;
 mod semantics;
 mod statements;
 
-use std::fs::read_to_string;
+use std::{
+    fs::{File, read_to_string},
+    io::Write,
+};
 
 use inkwell::{
     context::Context,
+    passes::PassBuilderOptions,
     targets::{Target, TargetMachine},
 };
 use lexer::{Lexer, Token, TokenType};
@@ -22,7 +26,7 @@ fn main() {
 
     let mut lex = Lexer::new(fs);
     let tk = lex.lexe();
-
+    println!("{:#?}", tk);
     let mut parser = parser::Parser::new(tk);
     let program = parser.parse_program().unwrap();
     println!("{:#?}", program);
@@ -34,8 +38,10 @@ fn main() {
         return;
     }
     let ctx = Context::create();
+
     let mut codegen = Codegen::new(&ctx, "mod_rs".to_string());
     codegen.generate(&program);
+
     Target::initialize_all(&inkwell::targets::InitializationConfig::default());
 
     let target_tripple = TargetMachine::get_default_triple();
@@ -51,6 +57,12 @@ fn main() {
         )
         .unwrap();
 
+    /*let passes = "mem2reg,instcombine,gvn,simplifycfg";
+    codegen
+        .module
+        .run_passes(passes, &target_machine, PassBuilderOptions::create())
+        .unwrap();*/
+    // codegen.module.run_passes("mem2reg", &target_machine, PassBuilderOptions::create()).unwrap();
     target_machine
         .write_to_file(
             &codegen.module,
@@ -58,6 +70,8 @@ fn main() {
             "out.o".as_ref(),
         )
         .unwrap();
-    //println!("{:#?}", parser.parse_program().unwrap());
     println!("{}", codegen.module.print_to_string().to_string());
+    //println!("{:#?}", parser.parse_program().unwrap());
+    //let mut file = File::create("test.ll").unwrap();
+    //file.write( codegen.module.print_to_string().to_string().as_bytes()).unwrap();
 }

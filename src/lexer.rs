@@ -217,7 +217,7 @@ impl Lexer {
                     self.push_token_2(TokenType::Identifier, word);
                 }
             }
-            _ => panic!("error while lexing"),
+            _ => panic!("error while lexing {:?}", c),
         }
     }
     fn push_token_2(&mut self, token_type: TokenType, lexme: String) {

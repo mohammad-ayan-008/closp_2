@@ -223,9 +223,13 @@ impl SemanticAnalyzer {
                     self.error
                         .push("Cannot assign a function call statement".to_string());
                 }
-                if self.analyze_expression(&a.target) != self.analyze_expression(&a.value) {
-                    self.error
-                        .push("Cannot assign a type with different type".to_string());
+                let lhs = self.analyze_expression(&a.target);
+                let rhs = self.analyze_expression(&a.value);
+                if lhs != rhs {
+                    self.error.push(format!(
+                        "Cannot assign a type with different type '{:?} '{:?}'",
+                        lhs, rhs
+                    ));
                 }
             }
             Statement::ExpressionStatement(a) => {
@@ -234,9 +238,16 @@ impl SemanticAnalyzer {
         }
     }
     pub fn analyze_var(&mut self, var: &Variable) {
+
         if let Some(a) = &var.expression
-            && let Some(type_) = self.analyze_expression(a)
-            && var.data_type != type_
+            && let Some(type_) = self.analyze_expression(a).or_else(||{
+              self.error.push(format!(
+                "type mismatch lhs '{:?}' rhs : None",
+                var.data_type, 
+            ));
+            None
+        })
+            && var.data_type != type_ 
         {
             self.error.push(format!(
                 "type mismatch lhs '{:?}' rhs '{:?}'",
@@ -260,7 +271,7 @@ impl SemanticAnalyzer {
         match expression {
             Expression::Int_Literal(_) => Some(Type::Int),
             Expression::Float_Literal(_) => Some(Type::Float),
-            Expression::String_Literal(_) => Some(Type::Pointer(Box::new(Type::Char))),
+            Expression::String_Literal(_) => Some(Type::Str),
             Expression::Bool_Literal(_) => Some(Type::Boolean),
             Expression::Char_Literal(_) => Some(Type::Char),
             Expression::Identifier(name) => {
@@ -354,6 +365,7 @@ impl SemanticAnalyzer {
             Expression::Binary { lhs, op, rhs } => {
                 let lhs = self.analyze_expression(lhs);
                 let rhs = self.analyze_expression(rhs);
+                println!("lhs {:?} rhs {:?} {:?}",lhs,rhs,expression);
                 self.analyze_binary_expression(lhs, op, rhs)
             }
         }
