@@ -1,19 +1,29 @@
-fn bool compare(int* a,int* b){
+fn bool comparitor(int* a,int* b){
   if (*a == *b){
     return true;
   }
+  printf("compared\n");
   return false;
+}
+fn void loopdata(int data){
+  int a =0;
+  while (data != a){
+    printf("%d\n",a);
+    a = a+1;
+  }
 }
 
 fn int main(){  
-  
+
+  loopdata(6);
   int l = 7;
   int k = 7;
-  if (compare(&k,&l)){
+  if (comparitor(&k,&l)){
     printf("true \n");
   }else{
     printf("false\n");
   }
+ 
   float c = 5.1;
   float *p = &c;
   float **ptr = &p;
@@ -43,10 +53,6 @@ fn int main(){
   Str name ="lost";
   Str name2 = "lost1";
   bool res = name == name2;
-
-
-
-
 
   return 0;
 }

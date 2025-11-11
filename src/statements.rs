@@ -49,7 +49,11 @@ pub struct Assignment {
     pub target: Expression,
     pub value: Expression,
 }
-
+#[derive(Debug)]
+pub struct WhileStatement {
+    pub condition: Expression,
+    pub body: Block,
+}
 #[derive(Debug)]
 pub struct IFElseStatement{
     pub condition:Expression,
@@ -62,6 +66,7 @@ pub enum Statement {
     Return(Option<Expression>),
     Variable(Variable),
     Assignment(Assignment),
+    WhileStmt(WhileStatement),
     IFStmt(IFElseStatement),
     ExpressionStatement(Expression),
     Block(Block),

@@ -28,6 +28,7 @@ pub enum TokenType {
     EqualEquals,
     BangEqual,
     Bang,
+    While,
 
     LPAREN,
     RPAREN,
@@ -87,6 +88,8 @@ impl Lexer {
         
         keywords.insert("if".to_string(), TokenType::IF);
         keywords.insert("else".to_string(), TokenType::ELSE);
+        
+        keywords.insert("while".to_string(), TokenType::While);
         Self {
             stream: chars,
             start: 0,

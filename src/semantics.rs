@@ -193,6 +193,15 @@ impl SemanticAnalyzer {
 
     pub fn analyze_statement(&mut self, statement: &Statement) {
         match &statement {
+            Statement::WhileStmt(a)=>{
+            let expr_type = self.analyze_expression(&a.condition);   
+             if ! matches!(expr_type,Some(Type::Boolean)){
+            self.error.push(format!(
+                "type mismatch at if expected boolean "
+            ));
+        }
+
+            }
             Statement::Variable(a) => self.analyze_var(a),
             Statement::Block(a) => {
                 self.enter_scope();

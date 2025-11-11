@@ -156,6 +156,30 @@ pub fn look_up(
 
     pub fn generate_stmts(&mut self, st: &Statement) {
         match st {
+            Statement::WhileStmt(a)=>{
+                let fn_ = self.current_fn.unwrap();
+                let while_condi= self.context.append_basic_block(fn_,"while_condi");
+                let while_body = self.context.append_basic_block(fn_,"while_body");
+                let while_end = self.context.append_basic_block(fn_,"while_end");
+        
+                self.builder.build_unconditional_branch(while_condi).unwrap();
+
+                self.builder.position_at_end(while_condi);
+                let con_value = self.compile_expressions(&a.condition).unwrap();
+                let con_val = con_value.into_int_value();
+                self.builder.build_conditional_branch(con_val, while_body, while_end).unwrap();
+
+                self.builder.position_at_end(while_body);
+                self.enter_scope();
+                self.generate_block(&a.body);
+                self.exit_scope();
+
+               if self.builder.get_insert_block().unwrap().get_terminator().is_none(){
+                 self.builder.build_unconditional_branch(while_condi).unwrap();
+               }
+                self.builder.position_at_end(while_end);
+
+            }
             Statement::IFStmt(a)=>{
                 let fn_ = self.current_fn.unwrap();
 
@@ -178,6 +202,7 @@ pub fn look_up(
                     self.builder.build_unconditional_branch(merge_block).unwrap();
                 }
                 self.exit_scope();
+
                 self.builder.position_at_end(else_block);
                 if let Some(a) = &a.else_block{
                     self.enter_scope();
@@ -382,8 +407,16 @@ pub fn look_up(
                     .unwrap();
 
                 if let Some(func) = self.module.get_function(name) {
-                    let val = self.builder.build_call(func, &args, "fn call").unwrap();
-                    Ok(val.try_as_basic_value().left().unwrap())
+
+                      let val = self.builder.build_call(func, &args, "fn call").unwrap();
+                      
+                    if func.get_type().get_return_type().is_some(){
+                     Ok(val.try_as_basic_value().left().unwrap())
+                    }else {
+                        let null =self.context.ptr_type(AddressSpace::default());
+                        let val =null.const_null();
+                        Ok(val.as_basic_value_enum())
+                    }
                 } else {
                     Err("func not found".to_string())
                 }
@@ -434,6 +467,7 @@ pub fn look_up(
                                 .into())
                         }
                     },
+            
                     expressions::Binaryop::NotEq |  expressions::Binaryop::EqualEqual =>{
                         if is_pointer{
                            let pred= match op{
