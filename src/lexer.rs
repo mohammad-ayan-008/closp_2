@@ -39,6 +39,8 @@ pub enum TokenType {
     Identifier,
     Fn,
     Return,
+    IF,
+    ELSE,
 
     INT,
     Char,
@@ -82,6 +84,9 @@ impl Lexer {
         keywords.insert("true".to_string(), TokenType::True);
         keywords.insert("false".to_string(), TokenType::False);
         keywords.insert("char".to_string(), TokenType::Char);
+        
+        keywords.insert("if".to_string(), TokenType::IF);
+        keywords.insert("else".to_string(), TokenType::ELSE);
         Self {
             stream: chars,
             start: 0,

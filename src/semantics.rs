@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     expressions::{Binaryop, Expression, UnaryOP},
-    statements::{self, Block, Function, Item, Parameter, Program, Statement, Type, Variable},
+    statements::{self, Block, Function, IFElseStatement, Item, Parameter, Program, Statement, Type, Variable},
 };
 
 #[derive(Debug)]
@@ -234,7 +234,18 @@ impl SemanticAnalyzer {
             }
             Statement::ExpressionStatement(a) => {
                 self.analyze_expression(a);
+            },
+            Statement::IFStmt(a)=>{
+                self.analyze_if(a);
             }
+        }
+    }
+    pub fn analyze_if(&mut self,if_else:&IFElseStatement){
+        let exp_type = self.analyze_expression(&if_else.condition);
+        if ! matches!(exp_type,Some(Type::Boolean)){
+            self.error.push(format!(
+                "type mismatch at if expected boolean "
+            ));
         }
     }
     pub fn analyze_var(&mut self, var: &Variable) {
@@ -412,6 +423,8 @@ impl SemanticAnalyzer {
         rhs: Option<Type>,
     ) -> Option<Type> {
         match (lhs, op, rhs) {
+            (Some(_),Binaryop::EqualEqual,Some(_))=>Some(Type::Boolean),
+            (Some(_),Binaryop::NotEq,Some(_))=>Some(Type::Boolean),
             (Some(Type::Int), Binaryop::ADD, Some(Type::Int)) => Some(Type::Int),
             (Some(Type::Int), Binaryop::DIV, Some(Type::Int)) => Some(Type::Int),
             (Some(Type::Int), Binaryop::SUB, Some(Type::Int)) => Some(Type::Int),
@@ -432,14 +445,7 @@ impl SemanticAnalyzer {
             (Some(Type::Int | Type::Float), Binaryop::GTE, Some(Type::Int | Type::Float)) => {
                 Some(Type::Boolean)
             }
-            (
-                Some(Type::Int | Type::Float),
-                Binaryop::EqualEqual,
-                Some(Type::Int | Type::Float),
-            ) => Some(Type::Boolean),
-            (Some(Type::Int | Type::Float), Binaryop::NotEq, Some(Type::Int | Type::Float)) => {
-                Some(Type::Boolean)
-            }
+            
 
             (Some(Type::Int), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),
             (Some(Type::Float), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),

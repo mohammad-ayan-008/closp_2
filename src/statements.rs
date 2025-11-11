@@ -51,10 +51,18 @@ pub struct Assignment {
 }
 
 #[derive(Debug)]
+pub struct IFElseStatement{
+    pub condition:Expression,
+    pub then_block:Block,
+    pub else_block:Option<Block>,
+}
+
+#[derive(Debug)]
 pub enum Statement {
     Return(Option<Expression>),
     Variable(Variable),
     Assignment(Assignment),
+    IFStmt(IFElseStatement),
     ExpressionStatement(Expression),
     Block(Block),
 }

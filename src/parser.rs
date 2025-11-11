@@ -59,8 +59,28 @@ impl Parser {
         self.consume(TokenType::RBrace)?;
         Ok(Block { statements })
     }
+
+    pub fn if_statement(&mut self)->Result<Statement,String>{
+        self.consume(TokenType::IF)?;
+        
+        self.consume(TokenType::LPAREN)?;
+        let expression = self.parse_expression()?;
+        self.consume(TokenType::RPAREN)?;
+
+        let then_block = self.parse_block()?;
+         
+        let mut else_block = None;
+        if self.match_(TokenType::ELSE){
+            self.advance();
+            else_block = Some(self.parse_block()?);
+        }
+        Ok(Statement::IFStmt(IFElseStatement { condition: expression, then_block: then_block, else_block: else_block }))
+
+    }
     fn parse_statements(&mut self) -> Result<Statement, String> {
         match self.peek().token_type {
+            TokenType::IF=>self.if_statement(),
+
             TokenType::Return => self.return_statement(),
             TokenType::Void
             | TokenType::Str

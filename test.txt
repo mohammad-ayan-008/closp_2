@@ -1,4 +1,19 @@
+fn bool compare(int* a,int* b){
+  if (*a == *b){
+    return true;
+  }
+  return false;
+}
+
 fn int main(){  
+  
+  int l = 7;
+  int k = 7;
+  if (compare(&k,&l)){
+    printf("true \n");
+  }else{
+    printf("false\n");
+  }
   float c = 5.1;
   float *p = &c;
   float **ptr = &p;
@@ -21,6 +36,15 @@ fn int main(){
   bool** ptrb2 = &ptrb1;
   bool*** ptrb3 = &ptrb2;
   printf("%d \n",***ptrb3);
+
+
+  bool b = ptrb1 == ptrb1;
+
+  Str name ="lost";
+  Str name2 = "lost1";
+  bool res = name == name2;
+
+
 
 
 
