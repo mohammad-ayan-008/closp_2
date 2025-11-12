@@ -252,29 +252,27 @@ pub fn look_up(
                     }
 
                     Expression::Unary { token: _, exp } => {
-                        // we expect token == Dereference here
+                        
                         if let Expression::Identifier(name) = &**exp {
-                            // lookup the alloca that holds the pointer
+                            
                             let (ptr_to_ptr, _, _, _) = self
                                 .look_up(name.as_str())
                                 .ok_or_else(|| format!("pointer variable {} not found", name))
                                 .unwrap();
 
-                            // 1) load the pointer value (address stored in the variable)
-                            // we know ptr_to_ptr is a PointerValue pointing to some pointer type like i64*
-                            // to load it we must pass the element type of ptr_to_ptr (which is a pointer type)
-                            let ptr_element_type = ptr_to_ptr.get_type(); // BasicTypeEnum
+                            
+                            let ptr_element_type = ptr_to_ptr.get_type(); 
                             println!(" Debug {:?} {:?}", exp, ptr_element_type);
-                            // ptr_element_type should be a pointer type (BasicTypeEnum::PointerType)
+                            
                             let loaded_ptr_val = self
                                 .builder
                                 .build_load(ptr_element_type, ptr_to_ptr, "load_ptr")
                                 .unwrap();
 
-                            // convert the loaded value to PointerValue so we can store through it
+                            
                             let loaded_ptr = loaded_ptr_val.into_pointer_value();
 
-                            // 2) store the rhs value into the loaded pointer
+                            
                             self.builder.build_store(loaded_ptr, expr).unwrap();
                         }
                     }
