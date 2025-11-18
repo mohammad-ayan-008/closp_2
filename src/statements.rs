@@ -55,10 +55,10 @@ pub struct WhileStatement {
     pub body: Block,
 }
 #[derive(Debug)]
-pub struct IFElseStatement{
-    pub condition:Expression,
-    pub then_block:Block,
-    pub else_block:Option<Block>,
+pub struct IFElseStatement {
+    pub condition: Expression,
+    pub then_block: Block,
+    pub else_block: Option<Block>,
 }
 
 #[derive(Debug)]

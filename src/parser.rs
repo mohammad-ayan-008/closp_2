@@ -60,38 +60,43 @@ impl Parser {
         Ok(Block { statements })
     }
 
-    pub fn if_statement(&mut self)->Result<Statement,String>{
+    pub fn if_statement(&mut self) -> Result<Statement, String> {
         self.consume(TokenType::IF)?;
-        
+
         self.consume(TokenType::LPAREN)?;
         let expression = self.parse_expression()?;
         self.consume(TokenType::RPAREN)?;
 
         let then_block = self.parse_block()?;
-         
+
         let mut else_block = None;
-        if self.match_(TokenType::ELSE){
+        if self.match_(TokenType::ELSE) {
             self.advance();
             else_block = Some(self.parse_block()?);
         }
-        Ok(Statement::IFStmt(IFElseStatement { condition: expression, then_block, else_block }))
-
+        Ok(Statement::IFStmt(IFElseStatement {
+            condition: expression,
+            then_block,
+            else_block,
+        }))
     }
-    pub fn while_stmt(&mut self)->Result<Statement,String>{
+    pub fn while_stmt(&mut self) -> Result<Statement, String> {
+        self.consume(TokenType::While)?;
 
-    self.consume(TokenType::While)?;
-       
-       self.consume(TokenType::LPAREN)?;
-       let expression = self.parse_expression()?;
+        self.consume(TokenType::LPAREN)?;
+        let expression = self.parse_expression()?;
         self.consume(TokenType::RPAREN)?;
 
         let then_block = self.parse_block()?;
-        Ok(Statement::WhileStmt(WhileStatement { condition: expression, body: then_block }))
+        Ok(Statement::WhileStmt(WhileStatement {
+            condition: expression,
+            body: then_block,
+        }))
     }
     fn parse_statements(&mut self) -> Result<Statement, String> {
         match self.peek().token_type {
             TokenType::While => self.while_stmt(),
-            TokenType::IF=>self.if_statement(),
+            TokenType::IF => self.if_statement(),
 
             TokenType::Return => self.return_statement(),
             TokenType::Void

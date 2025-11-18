@@ -1,7 +1,13 @@
 use std::{collections::HashMap, ops::Deref};
 
 use inkwell::{
-    builder::Builder, context::Context, module::Module, passes::PassManager, types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum}, values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue}, AddressSpace, FloatPredicate, IntPredicate
+    AddressSpace, FloatPredicate, IntPredicate,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    passes::PassManager,
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
 };
 
 use crate::{
@@ -49,23 +55,27 @@ impl<'ctx> Codegen<'ctx> {
         }
     }
 
-pub fn look_up(
-    &self,
-    name: &str,
-) -> Option<(PointerValue<'ctx>, Type, BasicTypeEnum<'ctx>, BasicValueEnum<'ctx>)> {
-    eprintln!("LOOKUP: searching for {:?}", name);
-    for (i, scope) in self.scope.iter().rev().enumerate() {
-        let keys: Vec<_> = scope.keys().cloned().collect();
-        eprintln!("  scope[{}] keys = {:?}", i, keys);
-        if let Some(entry) = scope.get(name) {
-            eprintln!("  found {:?} in scope[{}]", name, i);
-            return Some(entry.clone());
+    pub fn look_up(
+        &self,
+        name: &str,
+    ) -> Option<(
+        PointerValue<'ctx>,
+        Type,
+        BasicTypeEnum<'ctx>,
+        BasicValueEnum<'ctx>,
+    )> {
+        eprintln!("LOOKUP: searching for {:?}", name);
+        for (i, scope) in self.scope.iter().rev().enumerate() {
+            let keys: Vec<_> = scope.keys().cloned().collect();
+            eprintln!("  scope[{}] keys = {:?}", i, keys);
+            if let Some(entry) = scope.get(name) {
+                eprintln!("  found {:?} in scope[{}]", name, i);
+                return Some(entry.clone());
+            }
         }
+        eprintln!("  NOT FOUND {:?}", name);
+        None
     }
-    eprintln!("  NOT FOUND {:?}", name);
-    None
-}
-
 
     pub fn llvm_type(&mut self, ty: &Type) -> Result<BasicTypeEnum<'ctx>, String> {
         match ty {
@@ -156,61 +166,88 @@ pub fn look_up(
 
     pub fn generate_stmts(&mut self, st: &Statement) {
         match st {
-            Statement::WhileStmt(a)=>{
+            Statement::WhileStmt(a) => {
                 let fn_ = self.current_fn.unwrap();
-                let while_condi= self.context.append_basic_block(fn_,"while_condi");
-                let while_body = self.context.append_basic_block(fn_,"while_body");
-                let while_end = self.context.append_basic_block(fn_,"while_end");
-        
-                self.builder.build_unconditional_branch(while_condi).unwrap();
+                let while_condi = self.context.append_basic_block(fn_, "while_condi");
+                let while_body = self.context.append_basic_block(fn_, "while_body");
+                let while_end = self.context.append_basic_block(fn_, "while_end");
+
+                self.builder
+                    .build_unconditional_branch(while_condi)
+                    .unwrap();
 
                 self.builder.position_at_end(while_condi);
                 let con_value = self.compile_expressions(&a.condition).unwrap();
                 let con_val = con_value.into_int_value();
-                self.builder.build_conditional_branch(con_val, while_body, while_end).unwrap();
+                self.builder
+                    .build_conditional_branch(con_val, while_body, while_end)
+                    .unwrap();
 
                 self.builder.position_at_end(while_body);
                 self.enter_scope();
                 self.generate_block(&a.body);
                 self.exit_scope();
 
-               if self.builder.get_insert_block().unwrap().get_terminator().is_none(){
-                 self.builder.build_unconditional_branch(while_condi).unwrap();
-               }
+                if self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.builder
+                        .build_unconditional_branch(while_condi)
+                        .unwrap();
+                }
                 self.builder.position_at_end(while_end);
-
             }
-            Statement::IFStmt(a)=>{
+            Statement::IFStmt(a) => {
                 let fn_ = self.current_fn.unwrap();
 
                 let condition_val = self.compile_expressions(&a.condition).unwrap();
                 let con_val = condition_val.into_int_value();
 
+                let then_block = self.context.append_basic_block(fn_, "the_block");
+                let else_block = self.context.append_basic_block(fn_, "else_block");
+                let merge_block = self.context.append_basic_block(fn_, "merge_block");
 
-                let then_block = self.context.append_basic_block(fn_,"the_block");
-                let else_block = self.context.append_basic_block(fn_,"else_block");
-                let merge_block = self.context.append_basic_block(fn_,"merge_block");
-        
-
-                self.builder.build_conditional_branch(con_val, then_block, else_block).unwrap();
+                self.builder
+                    .build_conditional_branch(con_val, then_block, else_block)
+                    .unwrap();
 
                 self.builder.position_at_end(then_block);
                 self.enter_scope();
                 self.generate_block(&a.then_block);
-                
-                if self.builder.get_insert_block().unwrap().get_terminator().is_none(){
-                    self.builder.build_unconditional_branch(merge_block).unwrap();
+
+                if self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.builder
+                        .build_unconditional_branch(merge_block)
+                        .unwrap();
                 }
                 self.exit_scope();
 
                 self.builder.position_at_end(else_block);
-                if let Some(a) = &a.else_block{
+                if let Some(a) = &a.else_block {
                     self.enter_scope();
                     self.generate_block(a);
                     self.exit_scope();
                 }
-               if self.builder.get_insert_block().unwrap().get_terminator().is_none(){
-                    self.builder.build_unconditional_branch(merge_block).unwrap();
+                if self
+                    .builder
+                    .get_insert_block()
+                    .unwrap()
+                    .get_terminator()
+                    .is_none()
+                {
+                    self.builder
+                        .build_unconditional_branch(merge_block)
+                        .unwrap();
                 }
                 self.builder.position_at_end(merge_block);
             }
@@ -325,7 +362,9 @@ pub fn look_up(
                         }
 
                         if let Expression::Identifier(ident) = exps {
-                            let ptr = self.look_up(ident).ok_or_else(|| format!("not found {:?}",ident))?;
+                            let ptr = self
+                                .look_up(ident)
+                                .ok_or_else(|| format!("not found {:?}", ident))?;
                             Ok(ptr.0.as_basic_value_enum()) // pointer i64*
                         } else {
                             Err("Expected identifier".to_string())
@@ -349,12 +388,12 @@ pub fn look_up(
 
                         if let Expression::Identifier(ident) = exps {
                             let (mut ptr, mut ty, stored_type, _) =
-                                self.look_up(ident).ok_or(format!("not found {}",ident))?;
+                                self.look_up(ident).ok_or(format!("not found {}", ident))?;
                             let mut val = self
                                 .builder
                                 .build_load(stored_type, ptr, "load_ptr")
                                 .unwrap();
-                            
+
                             while let Type::Pointer(inner_ty) = ty {
                                 let llvm_inner_ty = self.llvm_type(&inner_ty).unwrap();
                                 val = self
@@ -365,8 +404,7 @@ pub fn look_up(
                                         "deref_val",
                                     )
                                     .unwrap();
-                                ty = *inner_ty; 
-                                
+                                ty = *inner_ty;
                             }
                             /* let pointee_type = match logical_type {
                                 Type::Pointer(inner_ty) => self.llvm_type(&inner_ty)?,
@@ -407,14 +445,13 @@ pub fn look_up(
                     .unwrap();
 
                 if let Some(func) = self.module.get_function(name) {
+                    let val = self.builder.build_call(func, &args, "fn call").unwrap();
 
-                      let val = self.builder.build_call(func, &args, "fn call").unwrap();
-                      
-                    if func.get_type().get_return_type().is_some(){
-                     Ok(val.try_as_basic_value().left().unwrap())
-                    }else {
-                        let null =self.context.ptr_type(AddressSpace::default());
-                        let val =null.const_null();
+                    if func.get_type().get_return_type().is_some() {
+                        Ok(val.try_as_basic_value().left().unwrap())
+                    } else {
+                        let null = self.context.ptr_type(AddressSpace::default());
+                        let val = null.const_null();
                         Ok(val.as_basic_value_enum())
                     }
                 } else {
@@ -439,8 +476,7 @@ pub fn look_up(
                                 )
                                 .unwrap()
                                 .into())
-                        } 
-                        else {
+                        } else {
                             Ok(self
                                 .builder
                                 .build_int_add(lhs.into_int_value(), rhs.into_int_value(), "fadd")
@@ -466,51 +502,115 @@ pub fn look_up(
                                 .unwrap()
                                 .into())
                         }
+                    }
+                    expressions::Binaryop::LT =>{
+                        if is_float{
+                            Ok(self.builder.build_float_compare(FloatPredicate::OLT, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
+                        }else {
+                           Ok(self.builder.build_int_compare(IntPredicate::SLT, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
+  
+                        }
                     },
-            
-                    expressions::Binaryop::NotEq |  expressions::Binaryop::EqualEqual =>{
-                        if is_pointer{
-                           let pred= match op{
-                                expressions::Binaryop::NotEq=>IntPredicate::NE,
-                                expressions::Binaryop::EqualEqual=>IntPredicate::EQ,
-                                _=>{
-                                        return Err("uknown operator expected != or ==".to_string());
-                                 }
+                   expressions::Binaryop::GT =>{
+                        if is_float{
+                            Ok(self.builder.build_float_compare(FloatPredicate::OGT, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
+                        }else {
+                           Ok(self.builder.build_int_compare(IntPredicate::SGT, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
+  
+                        }
+                    },
+expressions::Binaryop::LTE =>{
+                        if is_float{
+                            Ok(self.builder.build_float_compare(FloatPredicate::OLE, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
+                        }else {
+                           Ok(self.builder.build_int_compare(IntPredicate::SLE, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
+  
+                        }
+                    },
+expressions::Binaryop::GTE =>{
+                        if is_float{
+                            Ok(self.builder.build_float_compare(FloatPredicate::OGE, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
+                        }else {
+                           Ok(self.builder.build_int_compare(IntPredicate::SGE, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
+  
+                        }
+                    }
+                    expressions::Binaryop::NotEq | expressions::Binaryop::EqualEqual => {
+                        if is_pointer {
+                            let pred = match op {
+                                expressions::Binaryop::NotEq => IntPredicate::NE,
+                                expressions::Binaryop::EqualEqual => IntPredicate::EQ,
+                                _ => {
+                                    return Err("uknown operator expected != or ==".to_string());
+                                }
                             };
-                        
-                            let lhs_val= if lhs.is_pointer_value(){
-                                self.builder.build_ptr_to_int(lhs.into_pointer_value(),self.context.i32_type(), "lol").unwrap()
-                            }else{
+
+                            let lhs_val = if lhs.is_pointer_value() {
+                                self.builder
+                                    .build_ptr_to_int(
+                                        lhs.into_pointer_value(),
+                                        self.context.i32_type(),
+                                        "lol",
+                                    )
+                                    .unwrap()
+                            } else {
                                 lhs.into_int_value()
                             };
-                        
-                         let rhs_val= if rhs.is_pointer_value(){
-                                self.builder.build_ptr_to_int(rhs.into_pointer_value(),self.context.i32_type(), "ptr_cmp").unwrap()
-                            }else{
+
+                            let rhs_val = if rhs.is_pointer_value() {
+                                self.builder
+                                    .build_ptr_to_int(
+                                        rhs.into_pointer_value(),
+                                        self.context.i32_type(),
+                                        "ptr_cmp",
+                                    )
+                                    .unwrap()
+                            } else {
                                 rhs.into_int_value()
                             };
-                        Ok(self.builder.build_int_compare(pred, lhs_val, rhs_val, "ptr_cmp").unwrap().as_basic_value_enum())
-                        }else if is_float{
-                              let pred= match op{
-                                expressions::Binaryop::NotEq=>FloatPredicate::ONE,
-                                expressions::Binaryop::EqualEqual=>FloatPredicate::OEQ,
-                                _=>{
-                                        return Err("uknown operator expected != or ==".to_string());
-                                 }
+                            Ok(self
+                                .builder
+                                .build_int_compare(pred, lhs_val, rhs_val, "ptr_cmp")
+                                .unwrap()
+                                .as_basic_value_enum())
+                        } else if is_float {
+                            let pred = match op {
+                                expressions::Binaryop::NotEq => FloatPredicate::ONE,
+                                expressions::Binaryop::EqualEqual => FloatPredicate::OEQ,
+                                _ => {
+                                    return Err("uknown operator expected != or ==".to_string());
+                                }
                             };
-                            Ok(self.builder.build_float_compare(pred, lhs.into_float_value(),rhs.into_float_value(), "float_cmp").unwrap().as_basic_value_enum())
-                        }else {
-                          let pred= match op{
-                                expressions::Binaryop::NotEq=>IntPredicate::NE,
-                                expressions::Binaryop::EqualEqual=>IntPredicate::EQ,
-                                _=>{
-                                        return Err("uknown operator expected != or ==".to_string());
-                                 }
+                            Ok(self
+                                .builder
+                                .build_float_compare(
+                                    pred,
+                                    lhs.into_float_value(),
+                                    rhs.into_float_value(),
+                                    "float_cmp",
+                                )
+                                .unwrap()
+                                .as_basic_value_enum())
+                        } else {
+                            let pred = match op {
+                                expressions::Binaryop::NotEq => IntPredicate::NE,
+                                expressions::Binaryop::EqualEqual => IntPredicate::EQ,
+                                _ => {
+                                    return Err("uknown operator expected != or ==".to_string());
+                                }
                             };
-   
-                            Ok(self.builder.build_int_compare(pred, lhs.into_int_value(),rhs.into_int_value(), "float_cmp").unwrap().as_basic_value_enum())
-                        }
 
+                            Ok(self
+                                .builder
+                                .build_int_compare(
+                                    pred,
+                                    lhs.into_int_value(),
+                                    rhs.into_int_value(),
+                                    "float_cmp",
+                                )
+                                .unwrap()
+                                .as_basic_value_enum())
+                        }
                     }
                     _ => todo!(),
                 }

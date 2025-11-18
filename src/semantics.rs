@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use crate::{
     expressions::{Binaryop, Expression, UnaryOP},
-    statements::{self, Block, Function, IFElseStatement, Item, Parameter, Program, Statement, Type, Variable},
+    statements::{
+        self, Block, Function, IFElseStatement, Item, Parameter, Program, Statement, Type, Variable,
+    },
 };
 
 #[derive(Debug)]
@@ -193,14 +195,15 @@ impl SemanticAnalyzer {
 
     pub fn analyze_statement(&mut self, statement: &Statement) {
         match &statement {
-            Statement::WhileStmt(a)=>{
-            let expr_type = self.analyze_expression(&a.condition);   
-             if ! matches!(expr_type,Some(Type::Boolean)){
-            self.error.push(format!(
-                "type mismatch at if expected boolean "
-            ));
-        }
-
+            Statement::WhileStmt(a) => {
+                let expr_type = self.analyze_expression(&a.condition);
+                if !matches!(expr_type, Some(Type::Boolean)) {
+                    self.error
+                        .push(format!("type mismatch at if expected boolean "));
+                }
+                self.enter_scope();
+                self.analyze_block(&a.body);
+                self.exit_scope();
             }
             Statement::Variable(a) => self.analyze_var(a),
             Statement::Block(a) => {
@@ -213,6 +216,7 @@ impl SemanticAnalyzer {
                     self.error.push("expected return but not found".to_string());
                     return;
                 }
+                let line = a.as_ref().unwrap();
                 let exp_ty = self.analyze_expression(a.as_ref().unwrap());
 
                 if self.current_fn_return_ty != exp_ty {
@@ -223,9 +227,7 @@ impl SemanticAnalyzer {
                 }
                 if self.return_count == 0 {
                     self.return_count += 1;
-                } else {
-                    self.error.push("unreachable return ".to_lowercase());
-                }
+                } 
             }
             Statement::Assignment(a) => {
                 if matches!(a.target, Expression::FunctionCall { name: _, args: _ }) {
@@ -243,31 +245,38 @@ impl SemanticAnalyzer {
             }
             Statement::ExpressionStatement(a) => {
                 self.analyze_expression(a);
-            },
-            Statement::IFStmt(a)=>{
+            }
+            Statement::IFStmt(a) => {
                 self.analyze_if(a);
             }
         }
     }
-    pub fn analyze_if(&mut self,if_else:&IFElseStatement){
+    pub fn analyze_if(&mut self, if_else: &IFElseStatement) {
         let exp_type = self.analyze_expression(&if_else.condition);
-        if ! matches!(exp_type,Some(Type::Boolean)){
-            self.error.push(format!(
-                "type mismatch at if expected boolean "
-            ));
+        if !matches!(exp_type, Some(Type::Boolean)) {
+            self.error
+                .push(format!("type mismatch at if expected boolean "));
+        }
+        self.enter_scope();
+        self.analyze_block(&if_else.then_block);
+        self.exit_scope();
+
+        if let Some(a) = &if_else.else_block {
+            self.enter_scope();
+            self.analyze_block(a);
+            self.exit_scope();
         }
     }
     pub fn analyze_var(&mut self, var: &Variable) {
-
         if let Some(a) = &var.expression
-            && let Some(type_) = self.analyze_expression(a).or_else(||{
-              self.error.push(format!(
-                "type mismatch lhs '{:?}' rhs : None",
-                var.data_type, 
-            ));
-            None
-        })
-            && var.data_type != type_ 
+            && let Some(type_) = self.analyze_expression(a).or_else(|| {
+                self.error.push(format!(
+                    "type mismatch lhs '{:?}' rhs : None",
+                    var.data_type,
+                ));
+                None
+            })
+            && var.data_type != type_
         {
             self.error.push(format!(
                 "type mismatch lhs '{:?}' rhs '{:?}'",
@@ -385,7 +394,7 @@ impl SemanticAnalyzer {
             Expression::Binary { lhs, op, rhs } => {
                 let lhs = self.analyze_expression(lhs);
                 let rhs = self.analyze_expression(rhs);
-                println!("lhs {:?} rhs {:?} {:?}",lhs,rhs,expression);
+
                 self.analyze_binary_expression(lhs, op, rhs)
             }
         }
@@ -432,8 +441,8 @@ impl SemanticAnalyzer {
         rhs: Option<Type>,
     ) -> Option<Type> {
         match (lhs, op, rhs) {
-            (Some(_),Binaryop::EqualEqual,Some(_))=>Some(Type::Boolean),
-            (Some(_),Binaryop::NotEq,Some(_))=>Some(Type::Boolean),
+            (Some(_), Binaryop::EqualEqual, Some(_)) => Some(Type::Boolean),
+            (Some(_), Binaryop::NotEq, Some(_)) => Some(Type::Boolean),
             (Some(Type::Int), Binaryop::ADD, Some(Type::Int)) => Some(Type::Int),
             (Some(Type::Int), Binaryop::DIV, Some(Type::Int)) => Some(Type::Int),
             (Some(Type::Int), Binaryop::SUB, Some(Type::Int)) => Some(Type::Int),
@@ -454,7 +463,6 @@ impl SemanticAnalyzer {
             (Some(Type::Int | Type::Float), Binaryop::GTE, Some(Type::Int | Type::Float)) => {
                 Some(Type::Boolean)
             }
-            
 
             (Some(Type::Int), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),
             (Some(Type::Float), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),

@@ -1,20 +1,38 @@
 fn bool comparitor(int* a,int* b){
   if (*a == *b){
     return true;
+  }else {
+    return false;
   }
   printf("compared\n");
   return false;
 }
+
+fn void swap(int* a,int* b){
+  int temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
 fn void loopdata(int data){
   int a =0;
   while (data != a){
+    int j = 6;
+    printf("%d\n",j);
     printf("%d\n",a);
     a = a+1;
   }
 }
 
-fn int main(){  
+fn int fibo(int num){
+  if (num <=1){
+    return num;
+  } 
+  return fibo(num-1) + fibo(num-2);
+}
 
+fn int main(){  
+  printf("fibo is %d\n",fibo(10));
   loopdata(6);
   int l = 7;
   int k = 7;
@@ -54,6 +72,13 @@ fn int main(){
   Str name2 = "lost1";
   bool res = name == name2;
 
+
+  int num1 = 6;
+  int num2 = 7;
+
+  printf("before swap %d , %d\n",num1,num2);
+  swap(&num1,&num2);
+  printf("after swap %d , %d\n",num1,num2);
   return 0;
 }
 

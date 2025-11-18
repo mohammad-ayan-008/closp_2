@@ -1,10 +1,10 @@
+mod cfgbuilder;
 mod codegen;
 mod expressions;
 mod lexer;
 mod parser;
 mod semantics;
 mod statements;
-
 use std::{
     fs::{File, read_to_string},
     io::Write,
