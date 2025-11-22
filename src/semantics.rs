@@ -227,9 +227,10 @@ impl SemanticAnalyzer {
                 }
                 if self.return_count == 0 {
                     self.return_count += 1;
-                } 
+                }
             }
             Statement::Assignment(a) => {
+
                 if matches!(a.target, Expression::FunctionCall { name: _, args: _ }) {
                     self.error
                         .push("Cannot assign a function call statement".to_string());
@@ -238,8 +239,8 @@ impl SemanticAnalyzer {
                 let rhs = self.analyze_expression(&a.value);
                 if lhs != rhs {
                     self.error.push(format!(
-                        "Cannot assign a type with different type '{:?} '{:?}'",
-                        lhs, rhs
+                        "Cannot assign a type with different type '{:?} '{:?}' {:?}",
+                        lhs, rhs,a
                     ));
                 }
             }
@@ -406,8 +407,22 @@ impl SemanticAnalyzer {
                 self.error.push("Cannot cast to void".to_string());
                 None
             }
+            Type::Char => {
+                if !matches!(exp_ty, Some(Type::Int)) {
+                    self.error.push("Cannot cast to int type".to_string());
+                    return None;
+                }
+                Some(Type::Char)
+            }
+            Type::Float => {
+                if !matches!(exp_ty, Some(Type::Char | Type::Boolean | Type::Int)) {
+                    self.error.push("Cannot cast to int type".to_string());
+                    return None;
+                }
+                Some(Type::Float)
+            }
             Type::Int => {
-                if !matches!(exp_ty, Some(Type::Pointer(_) | Type::Int | Type::Char)) {
+                if !matches!(exp_ty, Some(Type::Char | Type::Boolean | Type::Float)) {
                     self.error.push("Cannot cast to int type".to_string());
                     return None;
                 }

@@ -1,3 +1,4 @@
+#![allow(warnings)]
 mod cfgbuilder;
 mod codegen;
 mod expressions;
@@ -26,14 +27,15 @@ fn main() {
 
     let mut lex = Lexer::new(fs);
     let tk = lex.lexe();
-    println!("{:#?}", tk);
+
     let mut parser = parser::Parser::new(tk);
     let program = parser.parse_program().unwrap();
     println!("{:#?}", program);
+
     let mut analyzer = SemanticAnalyzer::new();
     if let Err(e) = analyzer.analyze(&program) {
         for i in e {
-            println!("sem err :- {}", i)
+            println!("semantics error :- {}", i)
         }
         return;
     }

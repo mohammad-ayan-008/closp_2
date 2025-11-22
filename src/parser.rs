@@ -106,6 +106,7 @@ impl Parser {
             | TokenType::Char
             | TokenType::Float => self.parse_variable(),
             TokenType::LBrace => Ok(Statement::Block(self.parse_block()?)),
+
             TokenType::Identifier => {
                 let pointer = self.current;
                 let name = self.parse_expression()?;
@@ -296,6 +297,7 @@ impl Parser {
             {
                 let _tk = self.advance();
                 let expr = self.parse_cast()?;
+
                 return Ok(Expression::Cast {
                     expected: a,
                     expr: Box::new(expr),
@@ -320,7 +322,6 @@ impl Parser {
                 let _token = self.advance();
                 let exp = self.parse_unary()?;
 
-                println!("----> {:?}", exp);
                 Ok(Expression::Unary {
                     token: UnaryOP::Adressof,
                     exp: Box::new(exp),
@@ -339,7 +340,6 @@ impl Parser {
                 let _token = self.advance();
                 let exp = self.parse_unary()?;
 
-                println!("star {:?}", exp);
                 Ok(Expression::Unary {
                     token: UnaryOP::Dereference,
                     exp: Box::new(exp),

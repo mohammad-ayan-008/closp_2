@@ -8,6 +8,7 @@ fn bool comparitor(int* a,int* b){
   return false;
 }
 
+
 fn void swap(int* a,int* b){
   int temp = *a;
   *a = *b;
@@ -30,9 +31,13 @@ fn int fibo(int num){
   } 
   return fibo(num-1) + fibo(num-2);
 }
+fn void println(int** a){
+  printf("%d\n",**a);
+}
 
 fn int main(){  
   printf("fibo is %d\n",fibo(10));
+
   loopdata(6);
   int l = 7;
   int k = 7;
@@ -42,36 +47,6 @@ fn int main(){
     printf("false\n");
   }
  
-  float c = 5.1;
-  float *p = &c;
-  float **ptr = &p;
-  printf("%f\n",**ptr);
-
-
-  char c = 'a';
-  char* ptr = &c;
-  char** ptr2 = &ptr;
-  char*** ptr3 = &ptr2;
-  printf("%c \n",***ptr3);
-
-  Str name="lmaao";
-  Str* nameref = &name;
-  
-  printf("%s \n",*nameref);
-  
-  bool b = true;
-  bool* ptrb1 = &b;
-  bool** ptrb2 = &ptrb1;
-  bool*** ptrb3 = &ptrb2;
-  printf("%d \n",***ptrb3);
-
-
-  bool b = ptrb1 == ptrb1;
-
-  Str name ="lost";
-  Str name2 = "lost1";
-  bool res = name == name2;
-
 
   int num1 = 6;
   int num2 = 7;
@@ -79,6 +54,16 @@ fn int main(){
   printf("before swap %d , %d\n",num1,num2);
   swap(&num1,&num2);
   printf("after swap %d , %d\n",num1,num2);
+
+  int a = 6;
+  int k = 9;
+
+  int* b = &a;
+  int* j = &k;
+
+  int** ck = &b;
+  int** mf = &j;
+  println(mf);
   return 0;
 }
 

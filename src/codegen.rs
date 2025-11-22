@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, env::set_var, ops::Deref};
 
 use inkwell::{
     AddressSpace, FloatPredicate, IntPredicate,
@@ -6,12 +6,16 @@ use inkwell::{
     context::Context,
     module::Module,
     passes::PassManager,
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue},
+    types::{AnyType, BasicMetadataTypeEnum, BasicType, BasicTypeEnum},
+    values::{
+        BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, InstructionOpcode,
+        PointerValue,
+    },
 };
 
 use crate::{
-    expressions::{self, Expression},
+    expressions::{self, Expression, UnaryOP},
+    semantics,
     statements::{Block, Function, Item, Program, Statement, Type},
 };
 
@@ -64,16 +68,14 @@ impl<'ctx> Codegen<'ctx> {
         BasicTypeEnum<'ctx>,
         BasicValueEnum<'ctx>,
     )> {
-        eprintln!("LOOKUP: searching for {:?}", name);
         for (i, scope) in self.scope.iter().rev().enumerate() {
             let keys: Vec<_> = scope.keys().cloned().collect();
-            eprintln!("  scope[{}] keys = {:?}", i, keys);
+
             if let Some(entry) = scope.get(name) {
-                eprintln!("  found {:?} in scope[{}]", name, i);
                 return Some(entry.clone());
             }
         }
-        eprintln!("  NOT FOUND {:?}", name);
+
         None
     }
 
@@ -289,30 +291,24 @@ impl<'ctx> Codegen<'ctx> {
                     }
 
                     Expression::Unary { token: _, exp } => {
-                        // we expect token == Dereference here
                         if let Expression::Identifier(name) = &**exp {
-                            // lookup the alloca that holds the pointer
                             let (ptr_to_ptr, _, _, _) = self
                                 .look_up(name.as_str())
                                 .ok_or_else(|| format!("pointer variable {} not found", name))
                                 .unwrap();
 
-                            // 1) load the pointer value (address stored in the variable)
-                            // we know ptr_to_ptr is a PointerValue pointing to some pointer type like i64*
-                            // to load it we must pass the element type of ptr_to_ptr (which is a pointer type)
                             let ptr_element_type = ptr_to_ptr.get_type(); // BasicTypeEnum
-                            println!(" Debug {:?} {:?}", exp, ptr_element_type);
-                            // ptr_element_type should be a pointer type (BasicTypeEnum::PointerType)
+
                             let loaded_ptr_val = self
                                 .builder
                                 .build_load(ptr_element_type, ptr_to_ptr, "load_ptr")
                                 .unwrap();
 
-                            // convert the loaded value to PointerValue so we can store through it
                             let loaded_ptr = loaded_ptr_val.into_pointer_value();
 
-                            // 2) store the rhs value into the loaded pointer
                             self.builder.build_store(loaded_ptr, expr).unwrap();
+                        } else {
+                            let val = self.compile_expressions(exp).unwrap();
                         }
                     }
                     _ => todo!("{:?}", a.target),
@@ -321,11 +317,65 @@ impl<'ctx> Codegen<'ctx> {
             _ => panic!("no rule"),
         }
     }
+
+    fn resolve_lhs_ptr(&self, target: &Expression) -> PointerValue<'ctx> {
+        match target {
+            Expression::Identifier(name) => {
+                let (ptr, _, _, _) = self.look_up(name).unwrap();
+                ptr
+            }
+
+            Expression::Unary { token: _, exp } => {
+                // recursively get pointer for inner expression
+                let inner_ptr = self.resolve_lhs_ptr(exp);
+
+                // load one level of indirection
+                let ty = inner_ptr.get_type();
+
+                let loaded_val = self
+                    .builder
+                    .build_load(ty, inner_ptr, "deref_load")
+                    .unwrap();
+
+                loaded_val.into_pointer_value()
+            }
+
+            _ => panic!("Unsupported LHS assignment target: {:?}", target),
+        }
+    }
     pub fn mem_2_reg_pass(&mut self, func: FunctionValue<'ctx>) {
         //let manager = PassManager::create(&self.module);
         // manager.
         //  manager.initialize();
         // manager.run_on(&func);
+    }
+    pub fn deref_ptr(&mut self, exo: &Expression, level: i32) -> BasicValueEnum<'ctx> {
+        match exo {
+            Expression::Unary {
+                token: UnaryOP::Dereference,
+                exp,
+            } => self.deref_ptr(exp, level + 1),
+            Expression::Identifier(a) => {
+                let (pv, ty, btype, value) = self.look_up(a).unwrap();
+                let mut val = self.builder.build_load(btype, pv, "deref").unwrap();
+                let mut ity = &ty;
+                for i in 0..=level {
+                    if let Type::Pointer(a) = ity {
+                        let type_ll = self.llvm_type(&a).unwrap();
+                        val = self
+                            .builder
+                            .build_load(type_ll, val.into_pointer_value(), "deref ptr")
+                            .unwrap();
+                        ity = &*a;
+                    } else {
+                        panic!("expected ptrtype");
+                    }
+                }
+                return val;
+            }
+
+            _ => todo!("{:?}", exo),
+        }
     }
     pub fn compile_expressions(
         &mut self,
@@ -349,14 +399,10 @@ impl<'ctx> Codegen<'ctx> {
                     expressions::UnaryOP::Adressof => {
                         let mut exps = exp.deref();
 
-                        println!("Ptr {:#?}", exp);
                         if let Expression::Unary { token, exp } = exps {
-                            println!("Extered");
-                            println!("inner exp :{:?}", exp);
                             if matches!(**exp,Expression::Unary { ref token, ref exp }) {
                                 return self.compile_expressions(exp);
                             } else {
-                                println!("modified --------->");
                                 exps = exp;
                             }
                         }
@@ -370,57 +416,24 @@ impl<'ctx> Codegen<'ctx> {
                             Err("Expected identifier".to_string())
                         }
                     }
+                    expressions::UnaryOP::Not => {
+                        let exps = self.compile_expressions(exp)?;
+                        match exps {
+                            BasicValueEnum::IntValue(a) => {
+                                Ok(self.builder.build_not(a, "not").unwrap().into())
+                            }
 
+                            _ => Err("Not supported".into()),
+                        }
+                    }
                     expressions::UnaryOP::Dereference => {
                         let mut exps = exp.deref();
-
-                        println!("Ptr {:#?}", exp);
-                        if let Expression::Unary { token, exp } = exps {
-                            println!("Extered");
-                            println!("inner exp :{:?}", exp);
-                            if matches!(**exp,Expression::Unary { ref token, ref exp }) {
-                                return self.compile_expressions(exp);
-                            } else {
-                                println!("modified --------->");
-                                exps = exp;
-                            }
-                        }
-
-                        if let Expression::Identifier(ident) = exps {
-                            let (mut ptr, mut ty, stored_type, _) =
-                                self.look_up(ident).ok_or(format!("not found {}", ident))?;
-                            let mut val = self
-                                .builder
-                                .build_load(stored_type, ptr, "load_ptr")
-                                .unwrap();
-
-                            while let Type::Pointer(inner_ty) = ty {
-                                let llvm_inner_ty = self.llvm_type(&inner_ty).unwrap();
-                                val = self
-                                    .builder
-                                    .build_load(
-                                        llvm_inner_ty,
-                                        val.into_pointer_value(),
-                                        "deref_val",
-                                    )
-                                    .unwrap();
-                                ty = *inner_ty;
-                            }
-                            /* let pointee_type = match logical_type {
-                                Type::Pointer(inner_ty) => self.llvm_type(&inner_ty)?,
-                                _ => return Err("Tried to dereference non-pointer".to_string()),
-                            };*/
-
-                            Ok(val.as_basic_value_enum())
-                        } else {
-                            Err("Expected identifier for deref".to_string())
-                        }
+                        Ok(self.deref_ptr(exps, 0))
                     }
                     _ => todo!(),
                 }
             }
             Expression::String_Literal(a) => {
-                println!("literal {a}");
                 let unescaped = a
                     .replace("\\n", "\n")
                     .replace("\\t", "\t")
@@ -456,6 +469,43 @@ impl<'ctx> Codegen<'ctx> {
                     }
                 } else {
                     Err("func not found".to_string())
+                }
+            }
+            Expression::Cast { expected, expr } => {
+                let exp = self.compile_expressions(expr)?;
+                let ty = self.llvm_type(expected)?;
+                match (exp, ty) {
+                    (BasicValueEnum::IntValue(i), BasicTypeEnum::IntType(dst)) => {
+                        let sw = i.get_type().get_bit_width();
+                        let dw = dst.get_bit_width();
+
+                        if sw == dw {
+                            Ok(i.into())
+                        } else if dw > sw {
+                            Ok(self
+                                .builder
+                                .build_int_z_extend(i, dst, "zext")
+                                .unwrap()
+                                .into())
+                        } else {
+                            Ok(self
+                                .builder
+                                .build_int_truncate(i, dst, "trunc")
+                                .unwrap()
+                                .into())
+                        }
+                    }
+                    (BasicValueEnum::IntValue(i), BasicTypeEnum::FloatType(j)) => Ok(self
+                        .builder
+                        .build_signed_int_to_float(i, j, "fcast")
+                        .unwrap()
+                        .into()),
+                    (BasicValueEnum::FloatValue(a), BasicTypeEnum::IntType(j)) => Ok(self
+                        .builder
+                        .build_float_to_signed_int(a, j, "icast")
+                        .unwrap()
+                        .into()),
+                    _ => Err(format!("un supported cast ")),
                 }
             }
 
@@ -503,36 +553,104 @@ impl<'ctx> Codegen<'ctx> {
                                 .into())
                         }
                     }
-                    expressions::Binaryop::LT =>{
-                        if is_float{
-                            Ok(self.builder.build_float_compare(FloatPredicate::OLT, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
-                        }else {
-                           Ok(self.builder.build_int_compare(IntPredicate::SLT, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
-  
+                    expressions::Binaryop::LT => {
+                        if is_float {
+                            Ok(self
+                                .builder
+                                .build_float_compare(
+                                    FloatPredicate::OLT,
+                                    lhs.into_float_value(),
+                                    rhs.into_float_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
+                        } else {
+                            Ok(self
+                                .builder
+                                .build_int_compare(
+                                    IntPredicate::SLT,
+                                    lhs.into_int_value(),
+                                    rhs.into_int_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
                         }
-                    },
-                   expressions::Binaryop::GT =>{
-                        if is_float{
-                            Ok(self.builder.build_float_compare(FloatPredicate::OGT, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
-                        }else {
-                           Ok(self.builder.build_int_compare(IntPredicate::SGT, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
-  
+                    }
+                    expressions::Binaryop::GT => {
+                        if is_float {
+                            Ok(self
+                                .builder
+                                .build_float_compare(
+                                    FloatPredicate::OGT,
+                                    lhs.into_float_value(),
+                                    rhs.into_float_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
+                        } else {
+                            Ok(self
+                                .builder
+                                .build_int_compare(
+                                    IntPredicate::SGT,
+                                    lhs.into_int_value(),
+                                    rhs.into_int_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
                         }
-                    },
-expressions::Binaryop::LTE =>{
-                        if is_float{
-                            Ok(self.builder.build_float_compare(FloatPredicate::OLE, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
-                        }else {
-                           Ok(self.builder.build_int_compare(IntPredicate::SLE, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
-  
+                    }
+                    expressions::Binaryop::LTE => {
+                        if is_float {
+                            Ok(self
+                                .builder
+                                .build_float_compare(
+                                    FloatPredicate::OLE,
+                                    lhs.into_float_value(),
+                                    rhs.into_float_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
+                        } else {
+                            Ok(self
+                                .builder
+                                .build_int_compare(
+                                    IntPredicate::SLE,
+                                    lhs.into_int_value(),
+                                    rhs.into_int_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
                         }
-                    },
-expressions::Binaryop::GTE =>{
-                        if is_float{
-                            Ok(self.builder.build_float_compare(FloatPredicate::OGE, lhs.into_float_value(), rhs.into_float_value(), "f_cmp").unwrap().into())
-                        }else {
-                           Ok(self.builder.build_int_compare(IntPredicate::SGE, lhs.into_int_value(), rhs.into_int_value(), "f_cmp").unwrap().into())
-  
+                    }
+                    expressions::Binaryop::GTE => {
+                        if is_float {
+                            Ok(self
+                                .builder
+                                .build_float_compare(
+                                    FloatPredicate::OGE,
+                                    lhs.into_float_value(),
+                                    rhs.into_float_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
+                        } else {
+                            Ok(self
+                                .builder
+                                .build_int_compare(
+                                    IntPredicate::SGE,
+                                    lhs.into_int_value(),
+                                    rhs.into_int_value(),
+                                    "f_cmp",
+                                )
+                                .unwrap()
+                                .into())
                         }
                     }
                     expressions::Binaryop::NotEq | expressions::Binaryop::EqualEqual => {
@@ -618,7 +736,6 @@ expressions::Binaryop::GTE =>{
 
             Expression::Identifier(name) => {
                 if let Some((alloc_ptr, ty, ty2, _cached_value)) = self.look_up(name) {
-                    println!(" Debug {:?} {:?}", name, ty);
                     let ty = self.llvm_type(&ty).unwrap();
                     let loaded = {
                         self.builder

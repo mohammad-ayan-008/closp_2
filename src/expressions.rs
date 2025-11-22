@@ -1,7 +1,7 @@
 #![allow(dead_code, non_camel_case_types, clippy::upper_case_acronyms)]
 
 use crate::statements::Type;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Binaryop {
     ADD,
     SUB,
@@ -19,7 +19,7 @@ pub enum Binaryop {
     BITOR,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnaryOP {
     Negate,
     Adressof,
@@ -27,7 +27,7 @@ pub enum UnaryOP {
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Binary {
         lhs: Box<Expression>,
