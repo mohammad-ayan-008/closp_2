@@ -211,7 +211,7 @@ impl Parser {
             TokenType::Float => {
                 self.advance();
                 Type::Float
-            } 
+            }
             TokenType::Boolean => {
                 self.advance();
                 Type::Boolean

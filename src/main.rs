@@ -7,6 +7,7 @@ mod parser;
 mod semantics;
 mod statements;
 use std::{
+    env,
     fs::{File, read_to_string},
     io::Write,
 };
@@ -22,15 +23,24 @@ use crate::{codegen::Codegen, semantics::SemanticAnalyzer};
 
 fn main() {
     //let str_1 = "-(1.5 + 2) * 3 - 4 / 2 + (5 > 3 && 2.0 != 2 || 4 <= 6) & 3 | 1";
+    let args = env::args().collect::<Vec<String>>();
 
-    let fs = read_to_string("test.txt").unwrap();
+    if args.len() < 2 {
+        println!("Wrong args");
+        return;
+    }
+    if !args[1].ends_with(".closp"){
+        println!("Wrong File");
+        return;
+    }
+    let fs = read_to_string(&args[1]).unwrap();
 
     let mut lex = Lexer::new(fs);
     let tk = lex.lexe();
-
+    println!("{:?}",tk);
     let mut parser = parser::Parser::new(tk);
     let program = parser.parse_program().unwrap();
-   // println!("{:#?}", program);
+    println!("{:#?}", program);
 
     let mut analyzer = SemanticAnalyzer::new();
     if let Err(e) = analyzer.analyze(&program) {
@@ -59,27 +69,23 @@ fn main() {
         )
         .unwrap();
 
-   
-let passes = "mem2reg,gvn,instcombine,simplifycfg";
-    
-if let Err(err) = codegen.module.verify() {
-    eprintln!("Module verify failed: {:?}", err);
-}
+    let passes = "mem2reg,gvn,instcombine,simplifycfg";
+
+    if let Err(err) = codegen.module.verify() {
+        eprintln!("Module verify failed: {:?}", err);
+    }
     codegen
         .module
         .run_passes(passes, &target_machine, PassBuilderOptions::create())
         .unwrap();
 
-    // codegen.module.run_passes("mem2reg", &target_machine, PassBuilderOptions::create()).unwrap();
+    let file = args[1].split('.').next().unwrap();
     target_machine
         .write_to_file(
             &codegen.module,
             inkwell::targets::FileType::Object,
-            "out.o".as_ref(),
+            format!("{}.out", file).as_ref(),
         )
         .unwrap();
     println!("{}", codegen.module.print_to_string().to_string());
-    //println!("{:#?}", parser.parse_program().unwrap());
-    //let mut file = File::create("test.ll").unwrap();
-    //file.write( codegen.module.print_to_string().to_string().as_bytes()).unwrap();
 }

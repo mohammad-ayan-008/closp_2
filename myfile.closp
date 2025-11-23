@@ -1,0 +1,45 @@
+fn int fibo(int n){
+  if (n == 0){
+    return 0;
+  }
+  if (n == 1){
+    return 1;
+  }
+
+  int a = 0;
+  int b = 1;
+  int next = 0;
+  int i = 2;
+
+  while(i<=n){
+    next = a+b;
+    a = b;
+    b = next;
+    i++;
+  }
+
+  return b;
+}
+
+fn int fibo2(int a){
+  if (a <= 1){
+    return a;
+  }
+  return fibo(a-1) + fibo(a-2);
+}
+
+fn int main(){
+  char userinp = 'Y';
+  while (userinp != 'N'){
+    int number = 0;
+    printf("Enter a number :");
+    scanf("%d",&number);
+    printf("%d th Fibonnaci is %d\n",number,fibo2(number));
+
+    printf("Enter a choice \n");
+    printf("Enter Y  to  Continue \n");
+    printf("Enter N to exit \n");
+    scanf(" %c",&userinp);
+  }
+  return 0;
+}

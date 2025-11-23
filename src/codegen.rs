@@ -79,7 +79,7 @@ impl<'ctx> Codegen<'ctx> {
         None
     }
 
-    pub fn llvm_type(&mut self, ty: &Type,size:u32) -> Result<BasicTypeEnum<'ctx>, String> {
+    pub fn llvm_type(&mut self, ty: &Type, size: u32) -> Result<BasicTypeEnum<'ctx>, String> {
         match ty {
             Type::Int => Ok(self.context.i64_type().into()),
 
@@ -99,7 +99,7 @@ impl<'ctx> Codegen<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
         let type_ = self.context.i64_type().fn_type(&[ptr.into()], true);
         self.module.add_function("printf", type_, None);
-        
+
         let ptr = self.context.ptr_type(AddressSpace::default());
         let type_ = self.context.i64_type().fn_type(&[ptr.into()], true);
         self.module.add_function("scanf", type_, None);
@@ -119,7 +119,7 @@ impl<'ctx> Codegen<'ctx> {
     pub fn fun_ret_type(&mut self, ty: &Type) -> Result<Option<BasicTypeEnum<'ctx>>, String> {
         match ty {
             Type::Void => Ok(None),
-            _ => Ok(Some(self.llvm_type(ty,0)?)),
+            _ => Ok(Some(self.llvm_type(ty, 0)?)),
         }
     }
     pub fn generate(&mut self, program: &Program) {
@@ -147,7 +147,7 @@ impl<'ctx> Codegen<'ctx> {
         self.enter_scope();
         for (i, j) in f.params.iter().enumerate() {
             let param_ll = func.get_nth_param(i as u32).unwrap();
-            let type_ = self.llvm_type(&j.type_,0).unwrap();
+            let type_ = self.llvm_type(&j.type_, 0).unwrap();
             let alloc = self.builder.build_alloca(type_, "ptrr").unwrap();
             self.builder.build_store(alloc, param_ll).unwrap();
             self.declare_variable(j.name.clone(), j.type_.clone(), type_, alloc, param_ll);
@@ -282,7 +282,7 @@ impl<'ctx> Codegen<'ctx> {
                     .compile_expressions(a.expression.as_ref().unwrap())
                     .unwrap();
 
-                let mut ty = self.llvm_type(type_,0).unwrap(); 
+                let mut ty = self.llvm_type(type_, 0).unwrap();
                 let alloc = self.builder.build_alloca(ty, &name.clone()).unwrap();
                 self.builder.build_store(alloc, expr).unwrap();
                 self.declare_variable(name.clone(), a.data_type.clone(), ty, alloc, expr);
@@ -366,7 +366,7 @@ impl<'ctx> Codegen<'ctx> {
                 let mut ity = &ty;
                 for i in 0..=level {
                     if let Type::Pointer(a) = ity {
-                        let type_ll = self.llvm_type(&a,0).unwrap();
+                        let type_ll = self.llvm_type(&a, 0).unwrap();
                         val = self
                             .builder
                             .build_load(type_ll, val.into_pointer_value(), "deref ptr")
@@ -434,79 +434,103 @@ impl<'ctx> Codegen<'ctx> {
                     expressions::UnaryOP::Dereference => {
                         let mut exps = exp.deref();
                         Ok(self.deref_ptr(exps, 0))
-                    },
-                    UnaryOP::PostIncrement=>{
-                        let   Expression::Identifier(ref a) = **exp else{
+                    }
+                    UnaryOP::PostIncrement => {
+                        let Expression::Identifier(ref a) = **exp else {
                             panic!("expected an  identifier");
                         };
-                        let (ptr,ty,ty2,c) = self.look_up(a).unwrap();
+                        let (ptr, ty, ty2, c) = self.look_up(a).unwrap();
                         let loaded_val = self.builder.build_load(ty2, ptr, "load_ptr").unwrap();
-                    
-                        let new_val =if ty == Type::Float{
-                            let fty =self.context.f64_type().const_float(1.0);
-                             self.builder.build_float_add(loaded_val.into_float_value(), fty, "postfloatinc").unwrap().as_basic_value_enum()
-                        }else {
-                            let fty =self.context.i64_type().const_int(1, false);
-                            self.builder.build_int_add(loaded_val.into_int_value(), fty, "postintinc").unwrap().as_basic_value_enum()
+
+                        let new_val = if ty == Type::Float {
+                            let fty = self.context.f64_type().const_float(1.0);
+                            self.builder
+                                .build_float_add(loaded_val.into_float_value(), fty, "postfloatinc")
+                                .unwrap()
+                                .as_basic_value_enum()
+                        } else {
+                            let fty = self.context.i64_type().const_int(1, false);
+                            self.builder
+                                .build_int_add(loaded_val.into_int_value(), fty, "postintinc")
+                                .unwrap()
+                                .as_basic_value_enum()
                         };
                         self.builder.build_store(ptr, new_val).unwrap();
-                        
+
                         Ok(loaded_val)
-                    },
-                   UnaryOP::PostDecrement=>{
-                        let   Expression::Identifier(ref a) = **exp else{
+                    }
+                    UnaryOP::PostDecrement => {
+                        let Expression::Identifier(ref a) = **exp else {
                             panic!("expected an  identifier");
                         };
-                        let (ptr,ty,ty2,c) = self.look_up(a).unwrap();
+                        let (ptr, ty, ty2, c) = self.look_up(a).unwrap();
                         let loaded_val = self.builder.build_load(ty2, ptr, "load_ptr").unwrap();
-                    
-                        let new_val =if ty == Type::Float{
-                            let fty =self.context.f64_type().const_float(1.0);
-                             self.builder.build_float_sub(loaded_val.into_float_value(), fty, "postfloatdec").unwrap().as_basic_value_enum()
-                        }else {
-                            let fty =self.context.i64_type().const_int(1, false);
-                            self.builder.build_int_sub(loaded_val.into_int_value(), fty, "postintdec").unwrap().as_basic_value_enum()
+
+                        let new_val = if ty == Type::Float {
+                            let fty = self.context.f64_type().const_float(1.0);
+                            self.builder
+                                .build_float_sub(loaded_val.into_float_value(), fty, "postfloatdec")
+                                .unwrap()
+                                .as_basic_value_enum()
+                        } else {
+                            let fty = self.context.i64_type().const_int(1, false);
+                            self.builder
+                                .build_int_sub(loaded_val.into_int_value(), fty, "postintdec")
+                                .unwrap()
+                                .as_basic_value_enum()
                         };
                         self.builder.build_store(ptr, new_val).unwrap();
-                        
+
                         Ok(loaded_val)
-                    },
-                    UnaryOP::PreIncrement=>{
-                        let   Expression::Identifier(ref a) = **exp else{
+                    }
+                    UnaryOP::PreIncrement => {
+                        let Expression::Identifier(ref a) = **exp else {
                             panic!("expected an  identifier");
                         };
-                        let (ptr,ty,ty2,c) = self.look_up(a).unwrap();
+                        let (ptr, ty, ty2, c) = self.look_up(a).unwrap();
                         let loaded_val = self.builder.build_load(ty2, ptr, "load_ptr").unwrap();
-                    
-                        let new_val =if ty == Type::Float{
-                            let fty =self.context.f64_type().const_float(1.0);
-                             self.builder.build_float_add(loaded_val.into_float_value(), fty, "prefloatinc").unwrap().as_basic_value_enum()
-                        }else {
-                            let fty =self.context.i64_type().const_int(1, false);
-                            self.builder.build_int_add(loaded_val.into_int_value(), fty, "preintinc").unwrap().as_basic_value_enum()
+
+                        let new_val = if ty == Type::Float {
+                            let fty = self.context.f64_type().const_float(1.0);
+                            self.builder
+                                .build_float_add(loaded_val.into_float_value(), fty, "prefloatinc")
+                                .unwrap()
+                                .as_basic_value_enum()
+                        } else {
+                            let fty = self.context.i64_type().const_int(1, false);
+                            self.builder
+                                .build_int_add(loaded_val.into_int_value(), fty, "preintinc")
+                                .unwrap()
+                                .as_basic_value_enum()
                         };
                         self.builder.build_store(ptr, new_val).unwrap();
-                        
+
                         Ok(new_val)
-                    },
-                   UnaryOP::PreDecrement=>{
-                        let   Expression::Identifier(ref a) = **exp else{
+                    }
+                    UnaryOP::PreDecrement => {
+                        let Expression::Identifier(ref a) = **exp else {
                             panic!("expected an  identifier");
                         };
-                        let (ptr,ty,ty2,c) = self.look_up(a).unwrap();
+                        let (ptr, ty, ty2, c) = self.look_up(a).unwrap();
                         let loaded_val = self.builder.build_load(ty2, ptr, "load_ptr").unwrap();
-                    
-                        let new_val =if ty == Type::Float{
-                            let fty =self.context.f64_type().const_float(1.0);
-                             self.builder.build_float_sub(loaded_val.into_float_value(), fty, "prefloatdec").unwrap().as_basic_value_enum()
-                        }else {
-                            let fty =self.context.i64_type().const_int(1, false);
-                            self.builder.build_int_sub(loaded_val.into_int_value(), fty, "preintdec").unwrap().as_basic_value_enum()
+
+                        let new_val = if ty == Type::Float {
+                            let fty = self.context.f64_type().const_float(1.0);
+                            self.builder
+                                .build_float_sub(loaded_val.into_float_value(), fty, "prefloatdec")
+                                .unwrap()
+                                .as_basic_value_enum()
+                        } else {
+                            let fty = self.context.i64_type().const_int(1, false);
+                            self.builder
+                                .build_int_sub(loaded_val.into_int_value(), fty, "preintdec")
+                                .unwrap()
+                                .as_basic_value_enum()
                         };
                         self.builder.build_store(ptr, new_val).unwrap();
-                        
+
                         Ok(new_val)
-                    },
+                    }
 
                     _ => todo!(),
                 }
@@ -551,7 +575,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             Expression::Cast { expected, expr } => {
                 let exp = self.compile_expressions(expr)?;
-                let ty = self.llvm_type(expected,0)?;
+                let ty = self.llvm_type(expected, 0)?;
                 match (exp, ty) {
                     (BasicValueEnum::IntValue(i), BasicTypeEnum::IntType(dst)) => {
                         let sw = i.get_type().get_bit_width();
@@ -586,16 +610,16 @@ impl<'ctx> Codegen<'ctx> {
                     _ => Err(format!("un supported cast ")),
                 }
             }
-            
+
             Expression::Binary { lhs, op, rhs } => {
                 let lhs = self.compile_expressions(lhs)?;
                 let rhs = self.compile_expressions(rhs)?;
                 let is_float = lhs.is_float_value() || rhs.is_float_value();
                 let is_pointer = lhs.is_pointer_value() || rhs.is_pointer_value();
                 match op {
-                    expressions::Binaryop::Or=>{
-                       todo!()                        
-                    },
+                    expressions::Binaryop::Or => {
+                        todo!()
+                    }
                     crate::expressions::Binaryop::ADD => {
                         if is_float {
                             Ok(self
@@ -733,8 +757,8 @@ impl<'ctx> Codegen<'ctx> {
                                 .unwrap()
                                 .into())
                         }
-                    },
-                    
+                    }
+
                     expressions::Binaryop::NotEq | expressions::Binaryop::EqualEqual => {
                         if is_pointer {
                             let pred = match op {
@@ -818,7 +842,7 @@ impl<'ctx> Codegen<'ctx> {
 
             Expression::Identifier(name) => {
                 if let Some((alloc_ptr, ty, ty2, _cached_value)) = self.look_up(name) {
-                    let ty = self.llvm_type(&ty,0).unwrap();
+                    let ty = self.llvm_type(&ty, 0).unwrap();
                     let loaded = {
                         self.builder
                             .build_load(ty, alloc_ptr, &format!("load_{name}"))
@@ -838,7 +862,7 @@ impl<'ctx> Codegen<'ctx> {
         let param_types: Vec<BasicMetadataTypeEnum> = func
             .params
             .iter()
-            .map(|p| self.llvm_type(&p.type_,0).map(|t| t.into()))
+            .map(|p| self.llvm_type(&p.type_, 0).map(|t| t.into()))
             .collect::<Result<Vec<_>, _>>()?;
         let ty_ = if let Some(ret) = ret_type {
             ret.fn_type(&param_types, false)

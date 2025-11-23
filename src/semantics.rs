@@ -49,7 +49,7 @@ impl SemanticAnalyzer {
             is_var_args: true,
         };
         map.insert("printf".to_string(), signature.clone());
-        map.insert("scanf".to_string(), signature); 
+        map.insert("scanf".to_string(), signature);
         Self {
             return_count: 0,
             scopes: vec![HashMap::new()],
@@ -435,17 +435,16 @@ impl SemanticAnalyzer {
         match (op, expression) {
             (UnaryOP::Negate, Some(Type::Int)) => Some(Type::Int),
             (UnaryOP::Negate, Some(Type::Float)) => Some(Type::Float),
-            
-            (UnaryOP::PostIncrement, Some(Type::Int))=>Some(Type::Int),
-            (UnaryOP::PostIncrement, Some(Type::Float))=>Some(Type::Float), 
-            (UnaryOP::PreIncrement, Some(Type::Int))=>Some(Type::Int),
-            (UnaryOP::PreIncrement, Some(Type::Float))=>Some(Type::Float),
-            
-            (UnaryOP::PostDecrement, Some(Type::Int))=>Some(Type::Int),
-            (UnaryOP::PostDecrement, Some(Type::Float))=>Some(Type::Float), 
-            (UnaryOP::PreDecrement, Some(Type::Int))=>Some(Type::Int),
-            (UnaryOP::PreDecrement, Some(Type::Float))=>Some(Type::Float),
-            
+
+            (UnaryOP::PostIncrement, Some(Type::Int)) => Some(Type::Int),
+            (UnaryOP::PostIncrement, Some(Type::Float)) => Some(Type::Float),
+            (UnaryOP::PreIncrement, Some(Type::Int)) => Some(Type::Int),
+            (UnaryOP::PreIncrement, Some(Type::Float)) => Some(Type::Float),
+
+            (UnaryOP::PostDecrement, Some(Type::Int)) => Some(Type::Int),
+            (UnaryOP::PostDecrement, Some(Type::Float)) => Some(Type::Float),
+            (UnaryOP::PreDecrement, Some(Type::Int)) => Some(Type::Int),
+            (UnaryOP::PreDecrement, Some(Type::Float)) => Some(Type::Float),
 
             (UnaryOP::Not, Some(Type::Int)) => Some(Type::Int),
             (UnaryOP::Not, Some(Type::Boolean)) => Some(Type::Boolean),
@@ -489,9 +488,9 @@ impl SemanticAnalyzer {
             (Some(Type::Int | Type::Float), Binaryop::GTE, Some(Type::Int | Type::Float)) => {
                 Some(Type::Boolean)
             }
-            (Some(Type::Boolean),Binaryop::And,Some(Type::Boolean))=>Some(Type::Boolean),
-            (Some(Type::Boolean),Binaryop::Or,Some(Type::Boolean))=>Some(Type::Boolean),
-            
+            (Some(Type::Boolean), Binaryop::And, Some(Type::Boolean)) => Some(Type::Boolean),
+            (Some(Type::Boolean), Binaryop::Or, Some(Type::Boolean)) => Some(Type::Boolean),
+
             (Some(Type::Int), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),
             (Some(Type::Float), Binaryop::ADD, Some(Type::Float)) => Some(Type::Float),
 

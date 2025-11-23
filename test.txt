@@ -21,19 +21,16 @@ fn int fibo(int n){
 
 fn int main(){
 
-
-
-
-
   int nfib=0;
-  printf("Enter a number: ");
+  printf("Enter a number: \n");
   scanf("%d",&nfib);
 
-  
-
+  char c = 'A';
+  printf("Enter a char :");
+  scanf(" %c",&c);
+  printf("%c\n",c);
 
   char* a = "Ayan";
-
   printf("heyy %s\n",a);
 
 
