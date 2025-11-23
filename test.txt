@@ -8,6 +8,24 @@ fn bool comparitor(int* a,int* b){
   return false;
 }
 
+fn int fiboiter(int n){
+  if (n==0 || n==1){
+    return n;
+  }
+  
+  int a = 0;
+  int b = 1;
+  int next = 0;
+  int i =2;
+
+  while (i<= n){
+    next = a +b;
+    a = b;
+    b = next;
+    i++;
+  }
+  return b;
+}
 
 fn void swap(int* a,int* b){
   int temp = *a;
@@ -18,10 +36,8 @@ fn void swap(int* a,int* b){
 fn void loopdata(int data){
   int a =0;
   while (data != a){
-    int j = 6;
-    printf("%d\n",j);
     printf("%d\n",a);
-    a = a+1;
+    a++;
   }
 }
 
@@ -37,10 +53,12 @@ fn void println(int** a){
 
 fn int main(){  
   printf("fibo is %d\n",fibo(10));
+  printf("fibo is %d\n",fiboiter(10));
 
   loopdata(6);
   int l = 7;
   int k = 7;
+  
   if (comparitor(&k,&l)){
     printf("true \n");
   }else{
@@ -57,7 +75,17 @@ fn int main(){
 
   int a = 6;
   int k = 9;
+  int b = a++;
 
+  printf("value after inc %d %d\n",b,a);
+  printf("%d\n",a++);
+  int jk = 10;   
+  printf("kj ->>> %d\n",++jk);
+  printf("kj ->>> %d\n",jk++);
+  printf("kj ->>> %d\n",jk--);
+  printf("kj ->>> %d\n",jk);
+  printf("kj ->>> %d\n",--jk);
+  printf("kj ->>> %d\n",jk);
   int* b = &a;
   int* j = &k;
 

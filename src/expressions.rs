@@ -24,6 +24,10 @@ pub enum UnaryOP {
     Negate,
     Adressof,
     Dereference,
+    PostIncrement,
+    PostDecrement,
+    PreIncrement,
+    PreDecrement,
     Not,
 }
 

@@ -53,6 +53,9 @@ pub enum TokenType {
 
     Comma,
     Semicolon,
+
+    PlusPlus,
+    MinusMinus,
 }
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -175,9 +178,9 @@ impl Lexer {
             ',' => self.push_token(TokenType::Comma),
             '(' => self.push_token(TokenType::LPAREN),
             ')' => self.push_token(TokenType::RPAREN),
-            '-' => self.push_token(TokenType::MINUS),
+            '-' => self.add_double_check('-', TokenType::MinusMinus, TokenType::MINUS),
             '*' => self.push_token(TokenType::STAR),
-            '+' => self.push_token(TokenType::PLUS),
+            '+' => self.add_double_check('+', TokenType::PlusPlus, TokenType::PLUS),
             '/' => self.push_token(TokenType::SLASH),
             '!' => self.add_double_check('=', TokenType::BangEqual, TokenType::Bang),
             '=' => self.add_double_check('=', TokenType::EqualEquals, TokenType::Equal),

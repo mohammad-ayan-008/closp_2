@@ -59,11 +59,17 @@ fn main() {
         )
         .unwrap();
 
-    /*let passes = "mem2reg,instcombine,gvn,simplifycfg";
+   
+let passes = "mem2reg,gvn,instcombine,simplifycfg";
+    
+if let Err(err) = codegen.module.verify() {
+    eprintln!("Module verify failed: {:?}", err);
+}
     codegen
         .module
         .run_passes(passes, &target_machine, PassBuilderOptions::create())
-        .unwrap();*/
+        .unwrap();
+
     // codegen.module.run_passes("mem2reg", &target_machine, PassBuilderOptions::create()).unwrap();
     target_machine
         .write_to_file(

@@ -327,6 +327,22 @@ impl Parser {
                     exp: Box::new(exp),
                 })
             }
+            TokenType::MinusMinus => {
+                let _token = self.advance();
+                let exp = self.parse_unary()?;
+                Ok(Expression::Unary {
+                    token: UnaryOP::PreDecrement,
+                    exp: Box::new(exp),
+                })
+            }
+            TokenType::PlusPlus => {
+                let _token = self.advance();
+                let exp = self.parse_unary()?;
+                Ok(Expression::Unary {
+                    token: UnaryOP::PreIncrement,
+                    exp: Box::new(exp),
+                })
+            }
             TokenType::Bang => {
                 let _token = self.advance();
                 let exp = self.parse_cast()?;
@@ -345,9 +361,39 @@ impl Parser {
                     exp: Box::new(exp),
                 })
             }
-            _ => self.parse_fn_call(),
+            _ => self.parse_postfix(),
         }
     }
+    pub fn parse_postfix(&mut self) -> Result<Expression, String> {
+        let mut expr = self.parse_fn_call()?;
+        loop {
+            match self.peek().token_type {
+                TokenType::PlusPlus => {
+                    if !matches!(expr, Expression::Identifier(_)) {
+                        return Err(format!("Syntax error Expected an Identifier at "));
+                    }
+                    self.advance();
+                    expr = Expression::Unary {
+                        token: UnaryOP::PostIncrement,
+                        exp: Box::new(expr),
+                    };
+                }
+                TokenType::MinusMinus => {
+                    if !matches!(expr, Expression::Identifier(_)) {
+                        return Err(format!("Syntax error Expected an Identifier at "));
+                    }
+                    self.advance();
+                    expr = Expression::Unary {
+                        token: UnaryOP::PostDecrement,
+                        exp: Box::new(expr),
+                    };
+                }
+                _ => break,
+            };
+        }
+        Ok(expr)
+    }
+
     pub fn parse_arguments(&mut self) -> Result<Vec<Expression>, String> {
         let mut args = vec![];
         while !self.match_(TokenType::RPAREN) {
