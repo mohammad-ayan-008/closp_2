@@ -45,10 +45,11 @@ impl SemanticAnalyzer {
         let mut map = HashMap::new();
         let signature = FunctionSignature {
             return_type: Type::Int,
-            params: vec![Type::Str],
+            params: vec![Type::Pointer(Box::new(Type::Char))],
             is_var_args: true,
         };
-        map.insert("printf".to_string(), signature);
+        map.insert("printf".to_string(), signature.clone());
+        map.insert("scanf".to_string(), signature); 
         Self {
             return_count: 0,
             scopes: vec![HashMap::new()],
@@ -300,7 +301,7 @@ impl SemanticAnalyzer {
         match expression {
             Expression::Int_Literal(_) => Some(Type::Int),
             Expression::Float_Literal(_) => Some(Type::Float),
-            Expression::String_Literal(_) => Some(Type::Str),
+            Expression::String_Literal(_) => Some(Type::Pointer(Box::new(Type::Char))),
             Expression::Bool_Literal(_) => Some(Type::Boolean),
             Expression::Char_Literal(_) => Some(Type::Char),
             Expression::Identifier(name) => {

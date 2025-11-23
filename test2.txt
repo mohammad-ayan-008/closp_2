@@ -131,4 +131,103 @@ Expression::Unary { token, exp } => {
         _ => panic!("Unhandled unary operator"),
     }
 }
+fn bool comparitor(int* a,int* b){
+  if (*a == *b){
+    return true;
+  }else {
+    return false;
+  }
+  printf("compared\n");
+  return false;
+}
+
+fn int fiboiter(int n){
+  if (n==0){
+    return 0;
+  }
+  if (n==1){
+    return 1;
+  }
+  int a = 0;
+  int b = 1;
+  int next = 0;
+  int i =2;
+
+  while (i<= n){
+    next = a +b;
+    a = b;
+    b = next;
+    i++;
+  }
+  return b;
+}
+
+fn void swap(int* a,int* b){
+  int temp = *a;
+  *a = *b;
+  *b = temp;
+}
+
+fn void loopdata(int data){
+  int a =0;
+  while (data != a){
+    printf("%d\n",a);
+    a++;
+  }
+}
+
+fn int fibo(int num){
+  if (num <=1){
+    return num;
+  } 
+  return fibo(num-1) + fibo(num-2);
+}
+fn void println(int** a){
+  printf("%d\n",**a);
+}
+
+fn int main(){  
+  printf("fibo is %d\n",fibo(9));
+  printf("fibo is %d\n",fiboiter(9));
+
+  loopdata(6);
+  int l = 7;
+  int k = 7;
+  
+  if (comparitor(&k,&l)){
+    printf("true \n");
+  }else{
+    printf("false\n");
+  }
+ 
+
+  int num1 = 6;
+  int num2 = 7;
+
+  printf("before swap %d , %d\n",num1,num2);
+  swap(&num1,&num2);
+  printf("after swap %d , %d\n",num1,num2);
+
+  int a = 6;
+  int k = 9;
+  int b = a++;
+  int kl = a+k+a;
+  printf("kl --->< %d",kl);
+  printf("value after inc %d %d\n",b,a);
+  printf("%d\n",a++);
+  int jk = 10;   
+  printf("kj ->>> %d\n",++jk);
+  printf("kj ->>> %d\n",jk++);
+  printf("kj ->>> %d\n",jk--);
+  printf("kj ->>> %d\n",jk);
+  printf("kj ->>> %d\n",--jk);
+  printf("kj ->>> %d\n",jk);
+  int* b = &a;
+  int* j = &k;
+
+  int** ck = &b;
+  int** mf = &j;
+  println(mf);
+  return 0;
+}
 

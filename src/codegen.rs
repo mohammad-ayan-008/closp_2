@@ -79,7 +79,7 @@ impl<'ctx> Codegen<'ctx> {
         None
     }
 
-    pub fn llvm_type(&mut self, ty: &Type) -> Result<BasicTypeEnum<'ctx>, String> {
+    pub fn llvm_type(&mut self, ty: &Type,size:u32) -> Result<BasicTypeEnum<'ctx>, String> {
         match ty {
             Type::Int => Ok(self.context.i64_type().into()),
 
@@ -89,7 +89,7 @@ impl<'ctx> Codegen<'ctx> {
             Type::Pointer(_inner) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
 
             Type::Null => Ok(self.context.ptr_type(AddressSpace::default()).into()),
-            Type::Str => Ok(self.context.ptr_type(AddressSpace::default()).into()),
+
             Type::Float => Ok(self.context.f64_type().into()),
             Type::Void => Err("Void dont have a recognised type".to_string()),
         }
@@ -99,6 +99,10 @@ impl<'ctx> Codegen<'ctx> {
         let ptr = self.context.ptr_type(AddressSpace::default());
         let type_ = self.context.i64_type().fn_type(&[ptr.into()], true);
         self.module.add_function("printf", type_, None);
+        
+        let ptr = self.context.ptr_type(AddressSpace::default());
+        let type_ = self.context.i64_type().fn_type(&[ptr.into()], true);
+        self.module.add_function("scanf", type_, None);
     }
 
     pub fn new(context: &'ctx Context, mod_name: String) -> Self {
@@ -115,7 +119,7 @@ impl<'ctx> Codegen<'ctx> {
     pub fn fun_ret_type(&mut self, ty: &Type) -> Result<Option<BasicTypeEnum<'ctx>>, String> {
         match ty {
             Type::Void => Ok(None),
-            _ => Ok(Some(self.llvm_type(ty)?)),
+            _ => Ok(Some(self.llvm_type(ty,0)?)),
         }
     }
     pub fn generate(&mut self, program: &Program) {
@@ -143,7 +147,7 @@ impl<'ctx> Codegen<'ctx> {
         self.enter_scope();
         for (i, j) in f.params.iter().enumerate() {
             let param_ll = func.get_nth_param(i as u32).unwrap();
-            let type_ = self.llvm_type(&j.type_).unwrap();
+            let type_ = self.llvm_type(&j.type_,0).unwrap();
             let alloc = self.builder.build_alloca(type_, "ptrr").unwrap();
             self.builder.build_store(alloc, param_ll).unwrap();
             self.declare_variable(j.name.clone(), j.type_.clone(), type_, alloc, param_ll);
@@ -277,7 +281,8 @@ impl<'ctx> Codegen<'ctx> {
                 let expr = self
                     .compile_expressions(a.expression.as_ref().unwrap())
                     .unwrap();
-                let ty = self.llvm_type(type_).unwrap();
+
+                let mut ty = self.llvm_type(type_,0).unwrap(); 
                 let alloc = self.builder.build_alloca(ty, &name.clone()).unwrap();
                 self.builder.build_store(alloc, expr).unwrap();
                 self.declare_variable(name.clone(), a.data_type.clone(), ty, alloc, expr);
@@ -361,7 +366,7 @@ impl<'ctx> Codegen<'ctx> {
                 let mut ity = &ty;
                 for i in 0..=level {
                     if let Type::Pointer(a) = ity {
-                        let type_ll = self.llvm_type(&a).unwrap();
+                        let type_ll = self.llvm_type(&a,0).unwrap();
                         val = self
                             .builder
                             .build_load(type_ll, val.into_pointer_value(), "deref ptr")
@@ -516,7 +521,7 @@ impl<'ctx> Codegen<'ctx> {
                     .builder
                     .build_global_string_ptr(&unescaped, "str_def")
                     .unwrap();
-                Ok(str.as_basic_value_enum())
+                Ok(str.as_pointer_value().as_basic_value_enum())
             }
             Expression::Bool_Literal(a) => {
                 let val = self.context.bool_type().const_int(*a as u64, false);
@@ -534,7 +539,7 @@ impl<'ctx> Codegen<'ctx> {
                     let val = self.builder.build_call(func, &args, "fn call").unwrap();
 
                     if func.get_type().get_return_type().is_some() {
-                        Ok(val.try_as_basic_value().left().unwrap())
+                        Ok(val.try_as_basic_value().unwrap_basic())
                     } else {
                         let null = self.context.ptr_type(AddressSpace::default());
                         let val = null.const_null();
@@ -546,7 +551,7 @@ impl<'ctx> Codegen<'ctx> {
             }
             Expression::Cast { expected, expr } => {
                 let exp = self.compile_expressions(expr)?;
-                let ty = self.llvm_type(expected)?;
+                let ty = self.llvm_type(expected,0)?;
                 match (exp, ty) {
                     (BasicValueEnum::IntValue(i), BasicTypeEnum::IntType(dst)) => {
                         let sw = i.get_type().get_bit_width();
@@ -589,7 +594,7 @@ impl<'ctx> Codegen<'ctx> {
                 let is_pointer = lhs.is_pointer_value() || rhs.is_pointer_value();
                 match op {
                     expressions::Binaryop::Or=>{
-                        todo!()
+                       todo!()                        
                     },
                     crate::expressions::Binaryop::ADD => {
                         if is_float {
@@ -813,7 +818,7 @@ impl<'ctx> Codegen<'ctx> {
 
             Expression::Identifier(name) => {
                 if let Some((alloc_ptr, ty, ty2, _cached_value)) = self.look_up(name) {
-                    let ty = self.llvm_type(&ty).unwrap();
+                    let ty = self.llvm_type(&ty,0).unwrap();
                     let loaded = {
                         self.builder
                             .build_load(ty, alloc_ptr, &format!("load_{name}"))
@@ -833,7 +838,7 @@ impl<'ctx> Codegen<'ctx> {
         let param_types: Vec<BasicMetadataTypeEnum> = func
             .params
             .iter()
-            .map(|p| self.llvm_type(&p.type_).map(|t| t.into()))
+            .map(|p| self.llvm_type(&p.type_,0).map(|t| t.into()))
             .collect::<Result<Vec<_>, _>>()?;
         let ty_ = if let Some(ret) = ret_type {
             ret.fn_type(&param_types, false)

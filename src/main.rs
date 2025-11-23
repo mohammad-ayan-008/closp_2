@@ -30,7 +30,7 @@ fn main() {
 
     let mut parser = parser::Parser::new(tk);
     let program = parser.parse_program().unwrap();
-    println!("{:#?}", program);
+   // println!("{:#?}", program);
 
     let mut analyzer = SemanticAnalyzer::new();
     if let Err(e) = analyzer.analyze(&program) {

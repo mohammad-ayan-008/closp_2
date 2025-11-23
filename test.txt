@@ -1,25 +1,17 @@
-fn bool comparitor(int* a,int* b){
-  if (*a == *b){
-    return true;
-  }else {
-    return false;
+fn int fibo(int n){
+  if(n == 0){
+    return 0;
   }
-  printf("compared\n");
-  return false;
-}
+  if(n == 1){
+    return 1;
+  }
 
-fn int fiboiter(int n){
-  if (n==0 || n==1){
-    return n;
-  }
-  
   int a = 0;
   int b = 1;
-  int next = 0;
+  int next =0;
   int i =2;
-
-  while (i<= n){
-    next = a +b;
+  while (i<=n){
+    next = a+b;
     a = b;
     b = next;
     i++;
@@ -27,71 +19,28 @@ fn int fiboiter(int n){
   return b;
 }
 
-fn void swap(int* a,int* b){
-  int temp = *a;
-  *a = *b;
-  *b = temp;
-}
+fn int main(){
 
-fn void loopdata(int data){
-  int a =0;
-  while (data != a){
-    printf("%d\n",a);
-    a++;
-  }
-}
 
-fn int fibo(int num){
-  if (num <=1){
-    return num;
-  } 
-  return fibo(num-1) + fibo(num-2);
-}
-fn void println(int** a){
-  printf("%d\n",**a);
-}
 
-fn int main(){  
-  printf("fibo is %d\n",fibo(10));
-  printf("fibo is %d\n",fiboiter(10));
 
-  loopdata(6);
-  int l = 7;
-  int k = 7;
+
+  int nfib=0;
+  printf("Enter a number: ");
+  scanf("%d",&nfib);
+
   
-  if (comparitor(&k,&l)){
-    printf("true \n");
-  }else{
-    printf("false\n");
-  }
- 
 
-  int num1 = 6;
-  int num2 = 7;
 
-  printf("before swap %d , %d\n",num1,num2);
-  swap(&num1,&num2);
-  printf("after swap %d , %d\n",num1,num2);
+  char* a = "Ayan";
 
-  int a = 6;
-  int k = 9;
-  int b = a++;
+  printf("heyy %s\n",a);
 
-  printf("value after inc %d %d\n",b,a);
-  printf("%d\n",a++);
-  int jk = 10;   
-  printf("kj ->>> %d\n",++jk);
-  printf("kj ->>> %d\n",jk++);
-  printf("kj ->>> %d\n",jk--);
-  printf("kj ->>> %d\n",jk);
-  printf("kj ->>> %d\n",--jk);
-  printf("kj ->>> %d\n",jk);
-  int* b = &a;
-  int* j = &k;
 
-  int** ck = &b;
-  int** mf = &j;
-  println(mf);
-  return 0;
+  printf("The %d fibonaaci is %d\n",fibo(nfib));
+  
+  return 12;
 }
+
+
 

@@ -5,7 +5,6 @@ use crate::expressions::Expression;
 pub enum Type {
     Int,
     Float,
-    Str,
     Void,
     Boolean,
     Char,

@@ -100,7 +100,6 @@ impl Parser {
 
             TokenType::Return => self.return_statement(),
             TokenType::Void
-            | TokenType::Str
             | TokenType::Boolean
             | TokenType::INT
             | TokenType::Char
@@ -212,11 +211,7 @@ impl Parser {
             TokenType::Float => {
                 self.advance();
                 Type::Float
-            }
-            TokenType::Str => {
-                self.advance();
-                Type::Str
-            }
+            } 
             TokenType::Boolean => {
                 self.advance();
                 Type::Boolean
